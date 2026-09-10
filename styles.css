@@ -28,7 +28,7 @@
 html,
 body {
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -62,8 +62,11 @@ button {
 }
 
 input {
+  display: block;
   width: 100%;
   max-width: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
   min-height: 46px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -76,6 +79,14 @@ input[type="date"],
 input[type="month"] {
   appearance: none;
   -webkit-appearance: none;
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+input::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  text-align: left;
 }
 
 input:focus {
@@ -92,7 +103,10 @@ label span {
 }
 
 label {
+  display: block;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
 }
 
 .app {
@@ -579,14 +593,18 @@ h3 {
   }
 
   .app {
-    padding: 0 0.72rem 1rem;
+    width: 100%;
+    max-width: 100%;
+    padding: max(0.9rem, env(safe-area-inset-top)) 0.72rem 1rem;
+    overflow-x: hidden;
   }
 
   .header {
     grid-template-columns: 1fr;
     gap: 0.78rem;
     align-items: stretch;
-    padding: 0.82rem 0 0.68rem;
+    padding: 0.72rem 0 0.68rem;
+    min-width: 0;
   }
 
   h1 {
@@ -605,9 +623,10 @@ h3 {
 
   .header-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: 1fr;
     gap: 0.52rem;
     align-items: end;
+    width: 100%;
   }
 
   .month-field {
@@ -615,6 +634,7 @@ h3 {
   }
 
   .text-button {
+    width: 100%;
     min-width: 5.7rem;
     padding: 0.62rem 0.72rem;
   }
@@ -666,6 +686,7 @@ h3 {
   .panel {
     margin: 0 -0.12rem;
     padding: 0.78rem;
+    overflow: hidden;
   }
 
   .section-title,
@@ -702,19 +723,33 @@ h3 {
     gap: 0.58rem;
     margin-top: 0.78rem;
     padding: 0.68rem;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
   }
 
   input {
     width: 100%;
     max-width: 100%;
+    min-width: 0;
+    inline-size: 100%;
+    max-inline-size: 100%;
     min-height: 43px;
     padding: 0.62rem 0.68rem;
   }
 
   input[type="date"],
   input[type="month"] {
+    width: -webkit-fill-available;
+    max-width: -webkit-fill-available;
+    min-width: 0;
     font-size: 0.95rem;
     line-height: 1.2;
+  }
+
+  .entry-form label,
+  .month-field {
+    overflow: hidden;
   }
 
   .entry-form .wide {
