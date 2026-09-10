@@ -545,37 +545,226 @@ h3 {
 }
 
 @media (max-width: 600px) {
-  .app {
-    padding: 0.78rem;
+  body {
+    background:
+      linear-gradient(180deg, rgba(36, 87, 255, 0.12), transparent 16rem),
+      radial-gradient(circle at 100% 0, rgba(214, 51, 132, 0.16), transparent 15rem),
+      var(--page);
+    font-size: 15px;
   }
 
-  .header,
-  .header-actions,
-  .section-title,
-  .entry,
-  .entry-form,
-  .income-card-head,
-  .income-slots,
-  .income-slot,
-  .budget-strip {
+  .app {
+    padding: 0 0.72rem 1rem;
+  }
+
+  .header {
     grid-template-columns: 1fr;
+    gap: 0.78rem;
+    align-items: stretch;
+    padding: 0.82rem 0 0.68rem;
+  }
+
+  h1 {
+    font-size: 2.18rem;
+  }
+
+  .eyebrow {
+    font-size: 0.7rem;
+  }
+
+  .start-date,
+  .sync-status {
+    margin-top: 0.28rem;
+    font-size: 0.83rem;
   }
 
   .header-actions {
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.52rem;
+    align-items: end;
+  }
+
+  .month-field {
+    min-width: 0;
+  }
+
+  .text-button {
+    min-width: 5.7rem;
+    padding: 0.62rem 0.72rem;
+  }
+
+  .tabs {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    gap: 0.4rem;
+    margin: 0 -0.72rem 0.66rem;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    padding: 0.48rem 0.72rem;
+    box-shadow: 0 8px 18px rgba(17, 19, 21, 0.08);
+    scroll-snap-type: x proximity;
+  }
+
+  .tab {
+    flex: 0 0 auto;
+    min-height: 40px;
+    border: 1px solid transparent;
+    padding: 0.62rem 0.78rem;
+    font-size: 0.9rem;
+    scroll-snap-align: start;
+  }
+
+  .tab:not(.active) {
+    background: var(--soft);
+    color: #45505c;
+  }
+
+  .budget-strip {
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+    margin-bottom: 0.66rem;
+    padding: 0.88rem;
+  }
+
+  .budget-strip span {
+    font-size: 0.74rem;
+  }
+
+  .budget-strip strong {
+    font-size: 2rem;
+    white-space: normal;
+  }
+
+  .panel {
+    margin: 0 -0.12rem;
+    padding: 0.78rem;
+  }
+
+  .section-title,
+  .entry,
+  .entry-form,
+  .income-card-head,
+  .income-slots {
+    grid-template-columns: 1fr;
+  }
+
+  .section-title {
+    gap: 0.72rem;
+    padding-bottom: 0.78rem;
+  }
+
+  .section-title h2 {
+    font-size: 1.42rem;
+  }
+
+  .section-title p {
+    margin-top: 0.25rem;
+    font-size: 0.92rem;
+  }
+
+  .section-title strong {
+    justify-self: start;
+    width: 100%;
+    padding: 0.72rem 0.8rem;
+    font-size: 1.35rem;
+    white-space: normal;
+  }
+
+  .entry-form {
+    gap: 0.58rem;
+    margin-top: 0.78rem;
+    padding: 0.68rem;
+  }
+
+  input {
+    min-height: 43px;
+    padding: 0.62rem 0.68rem;
   }
 
   .entry-form .wide {
     grid-column: auto;
   }
 
+  .entry-list {
+    gap: 0.55rem;
+    margin-top: 0.78rem;
+  }
+
+  .entry {
+    gap: 0.66rem;
+    padding: 0.74rem;
+  }
+
+  .entry-heading {
+    gap: 0.36rem;
+  }
+
+  .entry h3,
+  .income-card h3 {
+    font-size: 0.98rem;
+  }
+
+  .entry p {
+    font-size: 0.87rem;
+  }
+
   .entry-side {
     justify-content: space-between;
     flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .entry-side strong {
+    font-size: 1rem;
+  }
+
+  .income-card {
+    gap: 0.72rem;
+    padding: 0.78rem;
+  }
+
+  .income-card-head {
+    gap: 0.5rem;
   }
 
   .income-total {
     justify-items: start;
     min-width: 0;
+  }
+
+  .income-total strong {
+    font-size: 1.18rem;
+  }
+
+  .income-slots {
+    gap: 0.48rem;
+  }
+
+  .income-slot {
+    grid-template-columns: 1fr;
+    gap: 0.42rem;
+    padding: 0.64rem;
+  }
+
+  .income-button,
+  .pill-button {
+    width: 100%;
+    min-height: 40px;
+    padding: 0.54rem 0.62rem;
+  }
+
+  .delete-button,
+  .round-button {
+    width: 2.42rem;
+    min-height: 2.42rem;
+  }
+
+  .status {
+    min-height: 1.48rem;
+    padding: 0.16rem 0.48rem;
+    font-size: 0.7rem;
   }
 }
