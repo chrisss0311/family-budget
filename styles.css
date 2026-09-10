@@ -192,10 +192,15 @@ h3 {
 }
 
 .text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 7.1rem;
   border: 1px solid var(--line);
   background: #fff;
   color: var(--red);
   padding: 0.64rem 0.82rem;
+  white-space: nowrap;
 }
 
 .tabs {

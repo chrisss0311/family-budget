@@ -198,6 +198,7 @@ function render() {
   const entries = visibleEntries(activeSection).sort(sortEntries);
   const total = sectionTotal(activeSection, entries);
 
+  els.monthInput.value = displayMonth(selectedMonth);
   els.tabs.forEach((tab) => {
     const isActive = tab.dataset.section === activeSection;
     tab.classList.toggle("active", isActive);
