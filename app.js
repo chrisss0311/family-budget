@@ -151,7 +151,8 @@ function init() {
     });
   });
   els.monthInput.addEventListener("change", () => {
-    selectedMonth = els.monthInput.value || START_MONTH;
+    selectedMonth = normalizeMonth(els.monthInput.value);
+    els.monthInput.value = selectedMonth;
     els.entryDate.value = `${selectedMonth}-01`;
     render();
   });
@@ -160,12 +161,14 @@ function init() {
     event.preventDefault();
     const amount = Number(els.entryAmount.value);
     if (!amount) return;
+    const date = normalizeDate(els.entryDate.value, selectedMonth);
+    els.entryDate.value = date;
 
     state.entries.push({
       id: uid(),
       section: activeSection,
       name: els.entryName.value.trim(),
-      date: els.entryDate.value,
+      date,
       amount,
       comment: els.entryComment.value.trim(),
       paid: false,
@@ -753,6 +756,28 @@ function isoDate(date) {
 
 function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function normalizeMonth(value) {
+  const raw = String(value || "").trim();
+  const iso = raw.match(/^(\d{4})-(\d{1,2})$/);
+  if (iso) return `${iso[1]}-${String(Number(iso[2])).padStart(2, "0")}`;
+
+  const ru = raw.match(/^(\d{1,2})[./-](\d{4})$/);
+  if (ru) return `${ru[2]}-${String(Number(ru[1])).padStart(2, "0")}`;
+
+  return START_MONTH;
+}
+
+function normalizeDate(value, fallbackMonth = selectedMonth) {
+  const raw = String(value || "").trim();
+  const iso = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return `${iso[1]}-${String(Number(iso[2])).padStart(2, "0")}-${String(Number(iso[3])).padStart(2, "0")}`;
+
+  const ru = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (ru) return `${ru[3]}-${String(Number(ru[2])).padStart(2, "0")}-${String(Number(ru[1])).padStart(2, "0")}`;
+
+  return `${normalizeMonth(fallbackMonth)}-01`;
 }
 
 function formatDate(dateString) {
