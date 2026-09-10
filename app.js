@@ -93,6 +93,11 @@ const sections = {
     hint: "Основные выплаты по датам и дополнительные поступления за выбранный месяц.",
     placeholder: "Например: премия или возврат",
   },
+  summary: {
+    title: "Сводка",
+    hint: "Красивая картина месяца: деньги, траты, долги, сбережения и подсказка, что делать с остатком.",
+    placeholder: "",
+  },
   required: {
     title: "Обязательные расходы",
     hint: "То, что нужно оплатить обязательно: жилье, коммунальные услуги, регулярные переводы.",
@@ -196,7 +201,7 @@ function init() {
 function render() {
   const section = sections[activeSection];
   const entries = visibleEntries(activeSection).sort(sortEntries);
-  const total = sectionTotal(activeSection, entries);
+  const total = activeSection === "summary" ? currentBudget() : sectionTotal(activeSection, entries);
 
   els.monthInput.value = displayMonth(selectedMonth);
   els.tabs.forEach((tab) => {
@@ -210,13 +215,14 @@ function render() {
   els.sectionTotal.textContent = money(total);
   els.entryName.placeholder = section.placeholder;
   els.currentBudget.textContent = money(currentBudget());
-  els.entryForm.hidden = activeSection === "savings";
+  els.entryForm.hidden = activeSection === "savings" || activeSection === "summary";
 
-  els.entryList.innerHTML = entries.length
-    ? entries
-        .map((entry) => renderEntry(entry))
-        .join("")
-    : `<div class="empty">Пока здесь нет записей.</div>`;
+  els.entryList.innerHTML =
+    activeSection === "summary"
+      ? renderSummary()
+      : entries.length
+        ? entries.map((entry) => renderEntry(entry)).join("")
+        : `<div class="empty">Пока здесь нет записей.</div>`;
 
   els.entryList.querySelectorAll("[data-delete]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -347,6 +353,84 @@ function renderIncomeEntry(entry) {
   `;
 }
 
+function renderSummary() {
+  const summary = monthSummary();
+  const bars = [
+    { label: "Доходы", value: summary.income, className: "income" },
+    { label: "Обязательные", value: summary.requiredTotal, className: "required" },
+    { label: "Долги", value: summary.debtPayments, className: "debt" },
+    { label: "Прочие", value: summary.otherTotal, className: "other" },
+    { label: "Сбережения", value: summary.savingsTotal, className: "savings" },
+  ];
+  const maxValue = Math.max(...bars.map((bar) => bar.value), 1);
+
+  return `
+    <div class="summary-grid">
+      <article class="summary-card summary-main">
+        <p class="summary-label">Итог месяца</p>
+        <strong>${money(summary.available)}</strong>
+        <span>${summary.monthName}${selectedMonth === START_MONTH ? " · тестовый месяц" : ""}</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">Доходы</p>
+        <strong>${money(summary.income)}</strong>
+        <span>внесено за месяц</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">Прочие траты</p>
+        <strong>${money(summary.otherTotal)}</strong>
+        <span>${selectedMonth === START_MONTH ? "учет с 11.09.2026" : "за выбранный месяц"}</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">Остаток долгов</p>
+        <strong>${money(summary.debtBalance)}</strong>
+        <span>с учетом прошлых месяцев</span>
+      </article>
+    </div>
+
+    <article class="summary-panel">
+      <div>
+        <p class="summary-label">Диаграмма</p>
+        <h3>Что формирует бюджет</h3>
+      </div>
+      <div class="chart-bars">
+        ${bars
+          .map(
+            (bar) => `
+              <div class="chart-row">
+                <span>${bar.label}</span>
+                <div class="chart-track">
+                  <i class="${bar.className}" style="width: ${Math.max(6, Math.round((bar.value / maxValue) * 100))}%"></i>
+                </div>
+                <strong>${money(bar.value)}</strong>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </article>
+
+    <article class="summary-panel">
+      <div>
+        <p class="summary-label">Совет месяца</p>
+        <h3>${summary.advice.title}</h3>
+      </div>
+      <p>${summary.advice.text}</p>
+      <div class="advice-split">
+        ${summary.advice.steps.map((step) => `<span>${step}</span>`).join("")}
+      </div>
+    </article>
+
+    <article class="summary-panel">
+      <div>
+        <p class="summary-label">Google Таблица</p>
+        <h3>Что туда сохраняется</h3>
+      </div>
+      <p>В таблицу уходит весь список записей приложения: доходы по источникам и месяцам, прочие траты, сбережения, обязательные расходы, долги, статусы оплаты по месяцам, остатки кредитов и время последнего сохранения. Отдельные банковские данные, пароли и номера карт приложение не сохраняет.</p>
+    </article>
+  `;
+}
+
 function entryActions(entry) {
   if (activeSection === "income" && entry.recurring) {
     return "";
@@ -384,6 +468,7 @@ function currentBudget() {
 
 function visibleEntries(section) {
   return state.entries.filter((entry) => {
+    if (section === "summary") return false;
     if (entry.section !== section) return false;
     if (section === "income") return entry.recurring || entry.date.startsWith(selectedMonth);
     if (section === "other") return entry.date.startsWith(selectedMonth);
@@ -628,6 +713,110 @@ function togglePaidMonth(entry) {
 function debtBalanceForMonth(entry) {
   const monthsBefore = (entry.paidMonths || []).filter((month) => month >= START_MONTH && month < selectedMonth).length;
   return Math.max(0, Number(entry.balance || 0) - monthsBefore * Number(entry.amount || 0));
+}
+
+function monthSummary() {
+  const current = currentBudget();
+  const incomeEntries = state.entries.filter((entry) => entry.section === "income");
+  const requiredEntries = state.entries.filter((entry) => entry.section === "required");
+  const debtEntries = state.entries.filter((entry) => entry.section === "debt");
+  const otherEntries = state.entries.filter((entry) => {
+    if (entry.section !== "other" || !entry.date.startsWith(selectedMonth)) return false;
+    return selectedMonth !== START_MONTH || entry.date >= "2026-09-11";
+  });
+  const savingsEntries = state.entries.filter((entry) => entry.section === "savings");
+
+  const income = incomeEntries.reduce((sum, entry) => {
+    if (entry.recurring) return sum + incomeEntryTotal(entry);
+    return entry.date.startsWith(selectedMonth) ? sum + Number(entry.amount || 0) : sum;
+  }, 0);
+  const requiredTotal = requiredEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const requiredUnpaid = requiredEntries
+    .filter((entry) => !isPaidForMonth(entry))
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const debtPayments = debtEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const debtUnpaid = debtEntries
+    .filter((entry) => !isPaidForMonth(entry))
+    .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const debtBalance = debtEntries.reduce((sum, entry) => sum + debtBalanceForMonth(entry), 0);
+  const otherTotal = otherEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const savingsTotal = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const cash = savingsEntries.find((entry) => entry.name.toLowerCase().includes("налич"))?.amount || 0;
+  const savingsAccount = savingsEntries.find((entry) => entry.name.toLowerCase().includes("накоп"))?.amount || 0;
+  const advice = buildAdvice({
+    available: current,
+    requiredUnpaid,
+    debtUnpaid,
+    debtBalance,
+    requiredTotal,
+    debtPayments,
+    cash,
+    savingsAccount,
+  });
+
+  return {
+    income,
+    requiredTotal,
+    debtPayments,
+    debtBalance,
+    otherTotal,
+    savingsTotal,
+    available: current,
+    monthName: displayMonth(selectedMonth),
+    advice,
+  };
+}
+
+function buildAdvice(summary) {
+  const mandatoryUnpaid = summary.requiredUnpaid + summary.debtUnpaid;
+  const monthlyBase = summary.requiredTotal + summary.debtPayments;
+  const cushionTarget = Math.max(monthlyBase, 100000);
+
+  if (summary.available <= 0) {
+    return {
+      title: "Сначала закрыть обязательное",
+      text: "Свободного остатка пока нет, поэтому лучше не перекладывать деньги в сбережения и не делать досрочные платежи. Главная задача месяца - не уйти в минус и спокойно собрать фактические траты.",
+      steps: ["Не трогать запас", "Внести все траты", "Проверить долги"],
+    };
+  }
+
+  if (mandatoryUnpaid > 0) {
+    return {
+      title: "Сначала оставить деньги на платежи",
+      text: `До конца месяца еще есть неоплаченные обязательные платежи на ${money(mandatoryUnpaid)}. Эту сумму лучше держать доступной, а решения по сбережениям и досрочным платежам принимать только после оплаты.`,
+      steps: ["Резерв на платежи", "Остаток - после оплат", "Кредиты - без спешки"],
+    };
+  }
+
+  if (selectedMonth === START_MONTH) {
+    return {
+      title: "Сентябрь лучше использовать как тест",
+      text: "Так как прочие траты начинаем учитывать с 11 сентября, в этом месяце лучше не делать резких выводов. Хорошая схема: часть оставить наличкой как быстрый запас, часть положить на накопительный счет, а досрочное закрытие кредитов планировать после полной картины расходов.",
+      steps: ["40% на счет", "40% наличкой", "20% на кредиты позже"],
+    };
+  }
+
+  if (summary.cash < cushionTarget * 0.4) {
+    return {
+      title: "Усилить наличный запас",
+      text: "Наличкой пока меньше комфортного быстрого резерва. Можно часть остатка оставить наличными, а остальное отправить на накопительный счет. Кредиты лучше ускорять после того, как запас станет спокойнее.",
+      steps: ["50% наличкой", "40% на счет", "10% на кредиты"],
+    };
+  }
+
+  if (summary.savingsAccount < cushionTarget) {
+    return {
+      title: "Увеличить накопительный счет",
+      text: "Быстрый запас уже есть, поэтому следующий сильный шаг - держать больше денег на накопительном счете. Досрочно закрывать кредиты стоит после сравнения ставок.",
+      steps: ["60% на счет", "20% наличкой", "20% на кредиты"],
+    };
+  }
+
+  return {
+    title: "Можно думать о досрочном погашении",
+    text: "Запас выглядит спокойнее. Если по кредитам высокая ставка, часть свободных денег можно направлять на досрочное погашение, а остальное продолжать держать на накопительном счете.",
+    steps: ["50% на кредиты", "40% на счет", "10% наличкой"],
+  };
 }
 
 function dueLevel(entry) {
