@@ -25,6 +25,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -44,6 +50,7 @@ body {
 button,
 input {
   font: inherit;
+  min-width: 0;
 }
 
 button {
@@ -56,12 +63,19 @@ button {
 
 input {
   width: 100%;
+  max-width: 100%;
   min-height: 46px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
   color: var(--ink);
   padding: 0.72rem 0.78rem;
+}
+
+input[type="date"],
+input[type="month"] {
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 input:focus {
@@ -75,6 +89,10 @@ label span {
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 750;
+}
+
+label {
+  min-width: 0;
 }
 
 .app {
@@ -95,6 +113,7 @@ label span {
   display: flex;
   align-items: end;
   gap: 0.6rem;
+  min-width: 0;
 }
 
 .month-field {
@@ -285,6 +304,12 @@ h3 {
     var(--soft);
   margin-top: 1rem;
   padding: 0.86rem;
+}
+
+.entry-form > *,
+.income-slot > *,
+.header-actions > * {
+  min-width: 0;
 }
 
 .entry-form[hidden] {
@@ -680,8 +705,16 @@ h3 {
   }
 
   input {
+    width: 100%;
+    max-width: 100%;
     min-height: 43px;
     padding: 0.62rem 0.68rem;
+  }
+
+  input[type="date"],
+  input[type="month"] {
+    font-size: 0.95rem;
+    line-height: 1.2;
   }
 
   .entry-form .wide {
