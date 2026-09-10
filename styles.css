@@ -131,7 +131,44 @@ label {
 }
 
 .month-field {
-  min-width: 10.5rem;
+  min-width: 13.5rem;
+}
+
+.month-picker {
+  position: relative;
+}
+
+.month-picker input {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.month-button,
+.summary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  padding: 0.72rem 0.78rem;
+  white-space: nowrap;
+}
+
+.summary-button {
+  min-width: 7.2rem;
+  color: var(--violet);
+}
+
+.summary-button.active {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--violet), var(--pink));
+  color: #fff;
 }
 
 .eyebrow,
@@ -797,6 +834,12 @@ h3 {
 
   .month-field {
     min-width: 0;
+  }
+
+  .month-button,
+  .summary-button {
+    min-height: 43px;
+    padding: 0.62rem 0.68rem;
   }
 
   .text-button {

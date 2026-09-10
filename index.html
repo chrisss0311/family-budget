@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Семейный бюджет</title>
     <meta name="description" content="Черновик приложения для семейного бюджета." />
-    <link rel="stylesheet" href="styles.css?v=20260911-3" />
+    <link rel="stylesheet" href="styles.css?v=20260911-4" />
   </head>
   <body>
     <main class="app">
@@ -19,21 +19,18 @@
         <div class="header-actions">
           <label class="month-field">
             <span>Месяц</span>
-            <input
-              id="monthInput"
-              type="text"
-              placeholder="сентябрь 2026"
-              value="сентябрь 2026"
-              autocomplete="off"
-            />
+            <div class="month-picker">
+              <button id="monthButton" class="month-button" type="button">сентябрь 2026</button>
+              <input id="monthInput" type="month" min="2026-09" value="2026-09" aria-label="Выбрать месяц" />
+            </div>
           </label>
+          <button id="summaryButton" class="summary-button" type="button">Сводка</button>
           <button id="resetButton" class="text-button" type="button">Очистить</button>
         </div>
       </header>
 
       <nav class="tabs" aria-label="Разделы бюджета">
         <button class="tab active" type="button" data-section="income">Доходы</button>
-        <button class="tab" type="button" data-section="summary">Сводка</button>
         <button class="tab" type="button" data-section="required">Обязательные расходы</button>
         <button class="tab" type="button" data-section="debt">Долги</button>
         <button class="tab" type="button" data-section="other">Прочие траты</button>
@@ -86,6 +83,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=20260911-3"></script>
+    <script src="app.js?v=20260911-4"></script>
   </body>
 </html>

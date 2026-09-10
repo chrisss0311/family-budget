@@ -129,6 +129,8 @@ let syncTimer;
 const els = {
   tabs: [...document.querySelectorAll("[data-section]")],
   monthInput: document.querySelector("#monthInput"),
+  monthButton: document.querySelector("#monthButton"),
+  summaryButton: document.querySelector("#summaryButton"),
   resetButton: document.querySelector("#resetButton"),
   syncStatus: document.querySelector("#syncStatus"),
   currentBudget: document.querySelector("#currentBudget"),
@@ -147,7 +149,8 @@ init();
 
 function init() {
   els.entryDate.value = displayDate(START_DATE);
-  els.monthInput.value = displayMonth(selectedMonth);
+  els.monthInput.value = selectedMonth;
+  els.monthButton.textContent = displayMonth(selectedMonth);
 
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -155,9 +158,14 @@ function init() {
       render();
     });
   });
+  els.summaryButton.addEventListener("click", () => {
+    activeSection = "summary";
+    render();
+  });
   els.monthInput.addEventListener("change", () => {
     selectedMonth = normalizeMonth(els.monthInput.value);
-    els.monthInput.value = displayMonth(selectedMonth);
+    els.monthInput.value = selectedMonth;
+    els.monthButton.textContent = displayMonth(selectedMonth);
     els.entryDate.value = displayDate(`${selectedMonth}-01`);
     render();
   });
@@ -203,12 +211,14 @@ function render() {
   const entries = visibleEntries(activeSection).sort(sortEntries);
   const total = activeSection === "summary" ? currentBudget() : sectionTotal(activeSection, entries);
 
-  els.monthInput.value = displayMonth(selectedMonth);
+  els.monthInput.value = selectedMonth;
+  els.monthButton.textContent = displayMonth(selectedMonth);
   els.tabs.forEach((tab) => {
     const isActive = tab.dataset.section === activeSection;
     tab.classList.toggle("active", isActive);
     tab.setAttribute("aria-current", isActive ? "page" : "false");
   });
+  els.summaryButton.classList.toggle("active", activeSection === "summary");
 
   els.sectionTitle.textContent = section.title;
   els.sectionHint.textContent = section.hint;
@@ -421,13 +431,6 @@ function renderSummary() {
       </div>
     </article>
 
-    <article class="summary-panel">
-      <div>
-        <p class="summary-label">Google Таблица</p>
-        <h3>Что туда сохраняется</h3>
-      </div>
-      <p>В таблицу уходит весь список записей приложения: доходы по источникам и месяцам, прочие траты, сбережения, обязательные расходы, долги, статусы оплаты по месяцам, остатки кредитов и время последнего сохранения. Отдельные банковские данные, пароли и номера карт приложение не сохраняет.</p>
-    </article>
   `;
 }
 
@@ -912,6 +915,8 @@ function saveRemoteState() {
     token: GOOGLE_SCRIPT_TOKEN,
     data: {
       entries: state.entries,
+      selectedMonth,
+      summary: monthSummary(),
       savedAt: new Date().toISOString(),
     },
   };
