@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Семейный бюджет</title>
+    <meta name="description" content="Черновик приложения для семейного бюджета." />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <p class="eyebrow">Семейный бюджет</p>
+          <h1>Бюджет</h1>
+          <p class="start-date">Точка отсчета: 1 сентября 2026</p>
+          <p id="syncStatus" class="sync-status">Синхронизация с Google Таблицей</p>
+        </div>
+        <div class="header-actions">
+          <label class="month-field">
+            <span>Месяц</span>
+            <input id="monthInput" type="month" min="2026-09" value="2026-09" />
+          </label>
+          <button id="resetButton" class="text-button" type="button">Очистить</button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Разделы бюджета">
+        <button class="tab active" type="button" data-section="income">Доходы</button>
+        <button class="tab" type="button" data-section="required">Обязательные расходы</button>
+        <button class="tab" type="button" data-section="debt">Долги</button>
+        <button class="tab" type="button" data-section="other">Прочие траты</button>
+        <button class="tab" type="button" data-section="savings">Сбережения с прошлых месяцев</button>
+      </nav>
+
+      <section class="budget-strip" aria-label="Бюджет на данный момент">
+        <span>На данный момент</span>
+        <strong id="currentBudget">0 ₽</strong>
+      </section>
+
+      <section class="panel">
+        <div class="section-title">
+          <div>
+            <h2 id="sectionTitle">Доходы</h2>
+            <p id="sectionHint">Все поступления денег.</p>
+          </div>
+          <strong id="sectionTotal">0 ₽</strong>
+        </div>
+
+        <form id="entryForm" class="entry-form">
+          <label>
+            <span>Название</span>
+            <input id="entryName" type="text" placeholder="Например: зарплата" required />
+          </label>
+          <label>
+            <span>Дата</span>
+            <input id="entryDate" type="date" required />
+          </label>
+          <label>
+            <span>Сумма</span>
+            <input id="entryAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" required />
+          </label>
+          <label class="wide">
+            <span>Комментарий</span>
+            <input id="entryComment" type="text" placeholder="Необязательно" />
+          </label>
+          <button class="primary" type="submit">Добавить</button>
+        </form>
+
+        <div id="entryList" class="entry-list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
