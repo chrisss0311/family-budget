@@ -141,8 +141,8 @@ const els = {
 init();
 
 function init() {
-  els.entryDate.value = START_DATE;
-  els.monthInput.value = selectedMonth;
+  els.entryDate.value = displayDate(START_DATE);
+  els.monthInput.value = displayMonth(selectedMonth);
 
   els.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -152,8 +152,8 @@ function init() {
   });
   els.monthInput.addEventListener("change", () => {
     selectedMonth = normalizeMonth(els.monthInput.value);
-    els.monthInput.value = selectedMonth;
-    els.entryDate.value = `${selectedMonth}-01`;
+    els.monthInput.value = displayMonth(selectedMonth);
+    els.entryDate.value = displayDate(`${selectedMonth}-01`);
     render();
   });
 
@@ -162,7 +162,7 @@ function init() {
     const amount = Number(els.entryAmount.value);
     if (!amount) return;
     const date = normalizeDate(els.entryDate.value, selectedMonth);
-    els.entryDate.value = date;
+    els.entryDate.value = displayDate(date);
 
     state.entries.push({
       id: uid(),
@@ -766,6 +766,9 @@ function normalizeMonth(value) {
   const ru = raw.match(/^(\d{1,2})[./-](\d{4})$/);
   if (ru) return `${ru[2]}-${String(Number(ru[1])).padStart(2, "0")}`;
 
+  const namedMonth = parseNamedMonth(raw);
+  if (namedMonth) return namedMonth;
+
   return START_MONTH;
 }
 
@@ -778,6 +781,45 @@ function normalizeDate(value, fallbackMonth = selectedMonth) {
   if (ru) return `${ru[3]}-${String(Number(ru[2])).padStart(2, "0")}-${String(Number(ru[1])).padStart(2, "0")}`;
 
   return `${normalizeMonth(fallbackMonth)}-01`;
+}
+
+function displayMonth(monthString) {
+  const [year, month] = normalizeMonth(monthString).split("-").map(Number);
+  return new Intl.DateTimeFormat("ru-RU", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, month - 1, 1));
+}
+
+function displayDate(dateString) {
+  const isoDate = normalizeDate(dateString);
+  const [year, month, day] = isoDate.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+function parseNamedMonth(value) {
+  const raw = value.toLowerCase().replace(/\s+/g, " ").replace("г.", "").trim();
+  const match = raw.match(/^([а-яё]+)\s+(\d{4})$/i);
+  if (!match) return "";
+
+  const months = [
+    "январь",
+    "февраль",
+    "март",
+    "апрель",
+    "май",
+    "июнь",
+    "июль",
+    "август",
+    "сентябрь",
+    "октябрь",
+    "ноябрь",
+    "декабрь",
+  ];
+  const monthIndex = months.findIndex((month) => month === match[1]);
+  if (monthIndex === -1) return "";
+
+  return `${match[2]}-${String(monthIndex + 1).padStart(2, "0")}`;
 }
 
 function formatDate(dateString) {
