@@ -333,6 +333,7 @@ function render() {
       const kind = button.dataset.moveSavings;
       if (kind === "cash-to-account") moveCashToSavingsAccount();
       if (kind === "cash-to-card") moveCashToCard();
+      if (kind === "account-to-card") moveSavingsAccountToCard();
       if (kind === "card-to-account") moveCardToSavings("Накопительный счет");
       if (kind === "card-to-cash") moveCardToSavings("Наличкой");
     });
@@ -441,6 +442,7 @@ function renderSavings(entries) {
     <div class="quick-actions">
       <button type="button" data-move-savings="cash-to-account">Наличные → счет</button>
       <button type="button" data-move-savings="cash-to-card">Наличные → карта</button>
+      <button type="button" data-move-savings="account-to-card">Счет → карта</button>
       <button type="button" data-move-savings="card-to-account">Карта → счет</button>
       <button type="button" data-move-savings="card-to-cash">Карта → наличные</button>
     </div>
@@ -702,6 +704,7 @@ function currentBudget() {
     if (entry.section === "savings") return total + savingsEntryDisplayAmount(entry);
     if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) {
       if (entry.movement === "cash-to-card") return total + amount;
+      if (entry.movement === "account-to-card") return total + amount;
       if (entry.movement === "cash-to-account") return total;
       return total - amount;
     }
@@ -943,6 +946,7 @@ function savingsTransferMeta(entry) {
   const labels = {
     "cash-to-account": "Наличные → накопительный счет",
     "cash-to-card": "Наличные → карта",
+    "account-to-card": "Накопительный счет → карта",
     "card-to-account": "Карта → накопительный счет",
     "card-to-cash": "Карта → наличные",
     "card-to-savings": `Карта → ${entry.target || "сбережения"}`,
@@ -1024,7 +1028,7 @@ function monthBalance() {
     if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) {
       const value = Number(entry.amount || 0);
       if (entry.movement === "cash-to-account") return;
-      if (entry.movement === "cash-to-card") {
+      if (entry.movement === "cash-to-card" || entry.movement === "account-to-card") {
         result[owner].income += value;
         result[owner].balance += value;
       } else {
@@ -1348,6 +1352,35 @@ function moveCashToCard() {
   render();
 }
 
+function moveSavingsAccountToCard() {
+  const account = findSavingsEntry("Накопительный счет");
+  if (!account) return;
+  const value = prompt("Сколько перенести с накопительного счета на карту?");
+  const amount = Number((value || "").replace(",", "."));
+  if (!amount) return;
+  if (amount > savingsEntryDisplayAmount(account)) {
+    alert("На накопительном счете меньше этой суммы.");
+    return;
+  }
+  const ownerAnswer = prompt("На чью карту? Напиши: Крис или Алина");
+  const owner = normalizeOwner(ownerAnswer);
+  if (!owner) return;
+  state.entries.push({
+    id: uid(),
+    section: "savingsTransfer",
+    name: "Накопительный счет → карта",
+    date: operationDate(),
+    amount,
+    owner,
+    movement: "account-to-card",
+    target: "Карта",
+    comment: "Перенос со счета на карту",
+    paidMonths: [],
+  });
+  saveState();
+  render();
+}
+
 function moveCardToSavings(targetName) {
   const target = findSavingsEntry(targetName);
   if (!target) return;
@@ -1437,6 +1470,7 @@ function savingsEntryAdjustment(name) {
     }
 
     if (name === "Накопительный счет") {
+      if (movement === "account-to-card") return sum - amount;
       if (movement === "cash-to-account" || movement === "card-to-account") return sum + amount;
       if (movement === "card-to-savings" && entry.target === "Накопительный счет") return sum + amount;
     }
