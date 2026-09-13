@@ -285,7 +285,7 @@ function render() {
     button.addEventListener("click", () => {
       const entry = state.entries.find((item) => item.id === button.dataset.delete);
       if (!entry) return;
-      if (["income", "other", "apartment"].includes(entry.section) && !confirm(`Удалить запись "${entry.name}"?`)) return;
+      if (["income", "other", "apartment", "transfer", "savingsTransfer"].includes(entry.section) && !confirm(`Удалить запись "${entry.name}"?`)) return;
       state.entries = state.entries.filter((item) => item.id !== entry.id);
       saveState();
       render();
@@ -332,6 +332,7 @@ function render() {
     button.addEventListener("click", () => {
       const kind = button.dataset.moveSavings;
       if (kind === "cash-to-account") moveCashToSavingsAccount();
+      if (kind === "cash-to-card") moveCashToCard();
       if (kind === "card-to-account") moveCardToSavings("Накопительный счет");
       if (kind === "card-to-cash") moveCardToSavings("Наличкой");
     });
@@ -367,6 +368,10 @@ function renderEntry(entry) {
   const meta =
     entry.section === "debt"
       ? debtMeta(entry)
+      : entry.section === "transfer"
+        ? transferMeta(entry)
+        : entry.section === "savingsTransfer"
+          ? savingsTransferMeta(entry)
       : entry.section === "income" && entry.recurring
         ? incomeMeta(entry)
         : `${formatDate(entry.date)}${entry.comment ? ` · ${escapeHtml(entry.comment)}` : ""}`;
@@ -430,10 +435,12 @@ function renderSingleGroup(entries) {
 }
 
 function renderSavings(entries) {
+  const history = monthlySavingsTransfers();
   const total = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   return `
     <div class="quick-actions">
       <button type="button" data-move-savings="cash-to-account">Наличные → счет</button>
+      <button type="button" data-move-savings="cash-to-card">Наличные → карта</button>
       <button type="button" data-move-savings="card-to-account">Карта → счет</button>
       <button type="button" data-move-savings="card-to-cash">Карта → наличные</button>
     </div>
@@ -446,6 +453,7 @@ function renderSavings(entries) {
         ${entries.length ? entries.map((entry) => renderEntry(entry)).join("") : `<div class="empty">Пока здесь нет записей.</div>`}
       </div>
     </details>
+    ${renderHistorySection("История операций", history)}
   `;
 }
 
@@ -591,6 +599,7 @@ function renderSummary() {
 
 function renderBalance() {
   const balance = monthBalance();
+  const history = monthlyTransfers();
   const maxValue = Math.max(
     balance.kris.income,
     balance.kris.deductions,
@@ -604,11 +613,25 @@ function renderBalance() {
   return `
     <div class="quick-actions">
       <button type="button" data-transfer-person="kris-to-alina">Крис → Алина</button>
+      <button type="button" data-transfer-person="alina-to-kris">Алина → Крис</button>
     </div>
     <div class="balance-grid">
       ${renderPersonBalance("Крис", balance.kris, maxValue)}
       ${renderPersonBalance("Алина", balance.alina, maxValue)}
     </div>
+    ${renderHistorySection("История переводов", history)}
+  `;
+}
+
+function renderHistorySection(title, entries) {
+  return `
+    <article class="summary-panel history-panel">
+      <div>
+        <p class="summary-label">${title}</p>
+        <h3>${entries.length ? "Операции по датам" : "Операций пока нет"}</h3>
+      </div>
+      ${entries.length ? renderGroupedEntries(entries) : `<div class="empty">Пока здесь нет записей.</div>`}
+    </article>
   `;
 }
 
@@ -658,7 +681,7 @@ function entryActions(entry) {
     }</button>`;
   }
 
-  if (activeSection === "savings") {
+  if (activeSection === "savings" && entry.section === "savings") {
     return `
       <button class="round-button plus" type="button" aria-label="Увеличить" data-adjust="${entry.id}" data-direction="plus">+</button>
       <button class="round-button minus" type="button" aria-label="Уменьшить" data-adjust="${entry.id}" data-direction="minus">−</button>
@@ -673,7 +696,11 @@ function currentBudget() {
   return state.entries.reduce((total, entry) => {
     const amount = Number(entry.amount || 0);
     if (entry.section === "savings") return total + amount;
-    if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) return total - amount;
+    if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) {
+      if (entry.movement === "cash-to-card") return total + amount;
+      if (entry.movement === "cash-to-account") return total;
+      return total - amount;
+    }
     if (entry.section === "income" && entry.recurring) return total + incomeEntryTotal(entry);
     if (entry.section === "income" && entry.date.startsWith(selectedMonth)) return total + amount;
     if (selectedMonth <= currentMonth && entry.section === "required" && !isPaidForMonth(entry)) return total - amount;
@@ -900,6 +927,23 @@ function debtMeta(entry) {
   return `${day} · ${payment} · ${balance}`;
 }
 
+function transferMeta(entry) {
+  return `${formatDate(entry.date)} · ${ownerLabel(entry.owner)} → ${ownerLabel(entry.toOwner)}`;
+}
+
+function savingsTransferMeta(entry) {
+  const movement = entry.movement || "card-to-savings";
+  const labels = {
+    "cash-to-account": "Наличные → накопительный счет",
+    "cash-to-card": "Наличные → карта",
+    "card-to-account": "Карта → накопительный счет",
+    "card-to-cash": "Карта → наличные",
+    "card-to-savings": `Карта → ${entry.target || "сбережения"}`,
+  };
+  const owner = ["kris", "alina"].includes(entry.owner) ? ` · ${ownerLabel(entry.owner)}` : "";
+  return `${formatDate(entry.date)} · ${labels[movement] || entry.comment || "Перенос"}${owner}`;
+}
+
 function incomeMeta(entry) {
   return incomeEntryTotal(entry) > 0 ? "сумма внесена" : "сумма пока не внесена";
 }
@@ -970,10 +1014,21 @@ function monthBalance() {
       return;
     }
 
+    if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) {
+      const value = Number(entry.amount || 0);
+      if (entry.movement === "cash-to-account") return;
+      if (entry.movement === "cash-to-card") {
+        result[owner].income += value;
+        result[owner].balance += value;
+      } else {
+        result[owner].deductions += value;
+        result[owner].balance -= value;
+      }
+      return;
+    }
+
     const shouldDeduct =
-      ((entry.section === "required" || entry.section === "debt") && !isPaidForMonth(entry)) ||
-      ((entry.section === "other" || entry.section === "apartment" || entry.section === "savingsTransfer") &&
-        entry.date.startsWith(selectedMonth));
+      (entry.section === "other" || entry.section === "apartment") && entry.date.startsWith(selectedMonth);
     if (!shouldDeduct) return;
 
     const value = Number(entry.amount || 0);
@@ -1241,6 +1296,48 @@ function moveCashToSavingsAccount() {
   }
   cash.amount = Math.max(0, Number(cash.amount || 0) - amount);
   account.amount = Number(account.amount || 0) + amount;
+  state.entries.push({
+    id: uid(),
+    section: "savingsTransfer",
+    name: "Наличные → накопительный счет",
+    date: operationDate(),
+    amount,
+    owner: "common",
+    movement: "cash-to-account",
+    target: "Накопительный счет",
+    comment: "Перенос между сбережениями",
+    paidMonths: [],
+  });
+  saveState();
+  render();
+}
+
+function moveCashToCard() {
+  const cash = findSavingsEntry("Наличкой");
+  if (!cash) return;
+  const value = prompt("Сколько перенести из наличных на карту?");
+  const amount = Number((value || "").replace(",", "."));
+  if (!amount) return;
+  if (amount > Number(cash.amount || 0)) {
+    alert("В наличных меньше этой суммы.");
+    return;
+  }
+  const ownerAnswer = prompt("На чью карту? Напиши: Крис или Алина");
+  const owner = normalizeOwner(ownerAnswer);
+  if (!owner) return;
+  cash.amount = Math.max(0, Number(cash.amount || 0) - amount);
+  state.entries.push({
+    id: uid(),
+    section: "savingsTransfer",
+    name: "Наличные → карта",
+    date: operationDate(),
+    amount,
+    owner,
+    movement: "cash-to-card",
+    target: "Карта",
+    comment: "Перенос из сбережений на карту",
+    paidMonths: [],
+  });
   saveState();
   render();
 }
@@ -1259,9 +1356,10 @@ function moveCardToSavings(targetName) {
     id: uid(),
     section: "savingsTransfer",
     name: `Перенос с карты в ${targetName}`,
-    date: `${selectedMonth}-01`,
+    date: operationDate(),
     amount,
     owner,
+    movement: targetName === "Наличкой" ? "card-to-cash" : "card-to-account",
     target: targetName,
     comment: "Быстрый перенос в сбережения",
     paidMonths: [],
@@ -1271,18 +1369,31 @@ function moveCardToSavings(targetName) {
 }
 
 function transferBetweenPeople(direction) {
+  const transfers = {
+    "kris-to-alina": {
+      name: "Перевод Крис → Алина",
+      owner: "kris",
+      toOwner: "alina",
+    },
+    "alina-to-kris": {
+      name: "Перевод Алина → Крис",
+      owner: "alina",
+      toOwner: "kris",
+    },
+  };
+  const transfer = transfers[direction];
+  if (!transfer) return;
   const value = prompt("Сколько перевести?");
   const amount = Number((value || "").replace(",", "."));
   if (!amount) return;
-  if (direction !== "kris-to-alina") return;
   state.entries.push({
     id: uid(),
     section: "transfer",
-    name: "Перевод Крис → Алина",
-    date: `${selectedMonth}-01`,
+    name: transfer.name,
+    date: operationDate(),
     amount,
-    owner: "kris",
-    toOwner: "alina",
+    owner: transfer.owner,
+    toOwner: transfer.toOwner,
     comment: "Внутренний перевод",
     paidMonths: [],
   });
@@ -1292,6 +1403,20 @@ function transferBetweenPeople(direction) {
 
 function findSavingsEntry(name) {
   return state.entries.find((entry) => entry.section === "savings" && entry.name === name);
+}
+
+function monthlyTransfers() {
+  return state.entries.filter((entry) => entry.section === "transfer" && entry.date.startsWith(selectedMonth));
+}
+
+function monthlySavingsTransfers() {
+  return state.entries.filter((entry) => entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth));
+}
+
+function operationDate() {
+  const today = new Date();
+  const todayMonth = monthKey(today);
+  return todayMonth === selectedMonth ? isoDate(today) : `${selectedMonth}-01`;
 }
 
 function normalizeOwner(value) {
