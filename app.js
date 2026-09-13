@@ -14,8 +14,8 @@ const requiredDefaults = [
   { name: "Квартира", amount: 90000, paid: true, order: 1 },
   { name: "Коммуналка", amount: 10000, paid: true, order: 2 },
   { name: "Карта Тройка", amount: 7000, paid: true, order: 3 },
-  { name: "Оплата моб. связи Крис", amount: 0, order: 4 },
-  { name: "Оплата моб. связи Алины", amount: 0, order: 5 },
+  { name: "Оплата моб. связи Крис", amount: 482, dueDay: 5, order: 4 },
+  { name: "Оплата моб. связи Алина", amount: 990, dueDay: 7, order: 5 },
 ];
 
 const incomeDefaults = [
@@ -66,23 +66,26 @@ const debtDefaults = [
   },
   {
     name: "Кредит Алина (Тинькофф)",
-    amount: 0,
-    dueDay: "",
-    balance: 0,
+    amount: 1000,
+    dueDay: 19,
+    balance: 7618.66,
+    paid: false,
     order: 3,
   },
   {
     name: "Кредит Алина (Сбер, кредитка)",
-    amount: 0,
-    dueDay: "",
-    balance: 0,
+    amount: 5600,
+    dueDay: 25,
+    balance: 72395.63,
+    paid: false,
     order: 4,
   },
   {
     name: "Кредит Алина (Сбер, мама)",
-    amount: 0,
-    dueDay: "",
-    balance: 0,
+    amount: 1600,
+    dueDay: 6,
+    balance: 20033.29,
+    paid: true,
     order: 5,
   },
 ];
@@ -161,6 +164,14 @@ function init() {
   els.summaryButton.addEventListener("click", () => {
     activeSection = "summary";
     render();
+  });
+  els.monthButton.addEventListener("click", () => {
+    if (typeof els.monthInput.showPicker === "function") {
+      els.monthInput.showPicker();
+    } else {
+      els.monthInput.focus();
+      els.monthInput.click();
+    }
   });
   els.monthInput.addEventListener("change", () => {
     selectedMonth = normalizeMonth(els.monthInput.value);
@@ -509,12 +520,20 @@ function migrateState(saved) {
     if (!exists) saved.entries.push(incomeEntry(item));
   });
   requiredDefaults.forEach((item) => {
-    const exists = saved.entries.some((entry) => entry.section === "required" && entry.name === item.name);
-    if (!exists) saved.entries.push(requiredEntry(item.name, item.amount, item.paid));
+    const entry = findRequiredEntry(saved.entries, item.name);
+    if (entry) {
+      applyRequiredDefault(entry, item);
+    } else {
+      saved.entries.push(requiredEntry(item));
+    }
   });
   debtDefaults.forEach((item) => {
-    const exists = saved.entries.some((entry) => entry.section === "debt" && entry.name === item.name);
-    if (!exists) saved.entries.push(debtEntry(item));
+    const entry = saved.entries.find((savedEntry) => savedEntry.section === "debt" && savedEntry.name === item.name);
+    if (entry) {
+      applyDebtDefault(entry, item);
+    } else {
+      saved.entries.push(debtEntry(item));
+    }
   });
   saved.entries.forEach((entry) => {
     if (entry.section === "income" && entry.recurring) {
@@ -528,6 +547,9 @@ function migrateState(saved) {
       addPaidMonth(entry, START_MONTH);
     }
     if (entry.section === "debt" && ["Кредит Крис (Металл)", "Кредит Крис (Альфа)"].includes(entry.name)) {
+      addPaidMonth(entry, START_MONTH);
+    }
+    if (entry.section === "debt" && itemPaidInStartMonth(entry.name)) {
       addPaidMonth(entry, START_MONTH);
     }
   });
@@ -556,7 +578,7 @@ function defaultEntries() {
       paidMonths: [],
     },
     ...incomeDefaults.map((item) => incomeEntry(item)),
-    ...requiredDefaults.map((item) => requiredEntry(item.name, item.amount, item.paid)),
+    ...requiredDefaults.map((item) => requiredEntry(item)),
     ...debtDefaults.map((item) => debtEntry(item)),
   ];
 }
@@ -577,17 +599,20 @@ function incomeEntry(item) {
   };
 }
 
-function requiredEntry(name, amount, paid = false) {
+function requiredEntry(item) {
+  const date =
+    item.dueDay === undefined || item.dueDay === "" ? START_DATE : `2026-09-${String(item.dueDay).padStart(2, "0")}`;
   return {
     id: uid(),
     section: "required",
-    name,
-    date: START_DATE,
-    amount,
+    name: item.name,
+    date,
+    amount: item.amount,
     comment: "Обязательный расход",
-    paid,
-    paidMonths: paid ? [START_MONTH] : [],
-    order: requiredDefaults.find((item) => item.name === name)?.order || 100,
+    paid: Boolean(item.paid),
+    paidMonths: item.paid ? [START_MONTH] : [],
+    dueDay: item.dueDay || "",
+    order: item.order || 100,
   };
 }
 
@@ -606,6 +631,48 @@ function debtEntry(item) {
     balance: item.balance,
     order: item.order,
   };
+}
+
+function findRequiredEntry(entries, name) {
+  const aliases = {
+    "Оплата моб. связи Алина": ["Оплата моб. связи Алина", "Оплата моб. связи Алины", "Оплата моб.связи Алина"],
+  };
+  const names = aliases[name] || [name];
+  return entries.find((entry) => entry.section === "required" && names.includes(entry.name));
+}
+
+function applyRequiredDefault(entry, item) {
+  entry.name = item.name;
+  entry.amount = item.amount;
+  entry.dueDay = item.dueDay || "";
+  entry.date =
+    item.dueDay === undefined || item.dueDay === "" ? START_DATE : `2026-09-${String(item.dueDay).padStart(2, "0")}`;
+  entry.order = item.order || entry.order || 100;
+  entry.comment = entry.comment || "Обязательный расход";
+  entry.paidMonths = Array.isArray(entry.paidMonths) ? entry.paidMonths : [];
+
+  if (item.paid === true) addPaidMonth(entry, START_MONTH);
+}
+
+function applyDebtDefault(entry, item) {
+  entry.amount = item.amount;
+  entry.dueDay = item.dueDay;
+  entry.balance = item.balance;
+  entry.date = item.dueDay === "" ? START_DATE : `2026-09-${String(item.dueDay).padStart(2, "0")}`;
+  entry.order = item.order || entry.order || 100;
+  entry.comment = entry.comment || "Ежемесячный платеж";
+  entry.paidMonths = Array.isArray(entry.paidMonths) ? entry.paidMonths : [];
+
+  if (item.paid === true) {
+    addPaidMonth(entry, START_MONTH);
+  }
+  if (item.paid === false) {
+    entry.paidMonths = entry.paidMonths.filter((month) => month !== START_MONTH);
+  }
+}
+
+function itemPaidInStartMonth(name) {
+  return debtDefaults.some((item) => item.name === name && item.paid === true);
 }
 
 function debtMeta(entry) {
@@ -911,14 +978,10 @@ function scheduleRemoteSave() {
 }
 
 function saveRemoteState() {
+  const data = syncPayload();
   const payload = {
     token: GOOGLE_SCRIPT_TOKEN,
-    data: {
-      entries: state.entries,
-      selectedMonth,
-      summary: monthSummary(),
-      savedAt: new Date().toISOString(),
-    },
+    data,
   };
 
   fetch(GOOGLE_SCRIPT_URL, {
@@ -936,6 +999,97 @@ function saveRemoteState() {
     .catch(() => {
       setSyncStatus("Не удалось сохранить в Google Таблицу", "error");
     });
+}
+
+function syncPayload() {
+  const savedAt = new Date().toISOString();
+  return {
+    entries: state.entries,
+    selectedMonth,
+    summary: monthSummary(),
+    tables: sheetTables(savedAt),
+    savedAt,
+  };
+}
+
+function sheetTables(savedAt) {
+  const summary = monthSummary();
+  const incomeRows = [];
+  state.entries
+    .filter((entry) => entry.section === "income")
+    .forEach((entry) => {
+      if (entry.recurring) {
+        (entry.slots || []).forEach((slot) => {
+          incomeRows.push([
+            selectedMonth,
+            entry.name,
+            slot.label,
+            monthlyAmount(entry, slot.key),
+            savedAt,
+          ]);
+        });
+      } else if (entry.date.startsWith(selectedMonth)) {
+        incomeRows.push([selectedMonth, entry.name, formatDate(entry.date), Number(entry.amount || 0), savedAt]);
+      }
+    });
+
+  const requiredRows = state.entries
+    .filter((entry) => entry.section === "required")
+    .map((entry) => [
+      selectedMonth,
+      entry.name,
+      Number(entry.amount || 0),
+      isPaidForMonth(entry) ? "Оплачено" : "Не оплачено",
+      formatDate(dueDateString(entry)),
+      savedAt,
+    ]);
+
+  const debtRows = state.entries
+    .filter((entry) => entry.section === "debt")
+    .map((entry) => [
+      selectedMonth,
+      entry.name,
+      entry.dueDay || "",
+      Number(entry.amount || 0),
+      debtBalanceForMonth(entry),
+      isPaidForMonth(entry) ? "Оплачено" : "Не оплачено",
+      savedAt,
+    ]);
+
+  const otherRows = state.entries
+    .filter((entry) => entry.section === "other" && entry.date.startsWith(selectedMonth))
+    .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
+
+  const savingsRows = state.entries
+    .filter((entry) => entry.section === "savings")
+    .map((entry) => [entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
+
+  const summaryRows = [
+    [selectedMonth, "Месяц", summary.monthName, savedAt],
+    [selectedMonth, "Бюджет на данный момент", summary.available, savedAt],
+    [selectedMonth, "Доходы", summary.income, savedAt],
+    [selectedMonth, "Обязательные расходы", summary.requiredTotal, savedAt],
+    [selectedMonth, "Долги, платежи", summary.debtPayments, savedAt],
+    [selectedMonth, "Остаток долгов", summary.debtBalance, savedAt],
+    [selectedMonth, "Прочие траты", summary.otherTotal, savedAt],
+    [selectedMonth, "Сбережения", summary.savingsTotal, savedAt],
+    [selectedMonth, "Совет", `${summary.advice.title}. ${summary.advice.text}`, savedAt],
+  ];
+
+  return {
+    "Доходы": [["Месяц", "Источник", "Дата/часть", "Сумма", "Обновлено"], ...incomeRows],
+    "Обязательные расходы": [["Месяц", "Название", "Сумма", "Статус", "Дата", "Обновлено"], ...requiredRows],
+    "Долги": [["Месяц", "Название", "Число платежа", "Платеж", "Остаток", "Статус", "Обновлено"], ...debtRows],
+    "Прочие траты": [["Месяц", "Дата", "Название", "Сумма", "Комментарий", "Обновлено"], ...otherRows],
+    "Сбережения": [["Название", "Сумма", "Комментарий", "Обновлено"], ...savingsRows],
+    "Сводка": [["Месяц", "Показатель", "Значение", "Обновлено"], ...summaryRows],
+  };
+}
+
+function dueDateString(entry) {
+  const due = dueDateForEntry(entry);
+  if (!due) return `${selectedMonth}-01`;
+  return isoDate(due);
 }
 
 function money(value) {

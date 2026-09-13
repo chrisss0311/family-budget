@@ -140,10 +140,15 @@ label {
 
 .month-picker input {
   position: absolute;
-  inset: 0;
-  z-index: 2;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 1px;
+  padding: 0;
+  border: 0;
   opacity: 0;
-  cursor: pointer;
+  pointer-events: none;
 }
 
 .month-button,
@@ -161,6 +166,7 @@ label {
 }
 
 .summary-button {
+  flex: 0 0 auto;
   min-width: 7.2rem;
   color: var(--violet);
 }
@@ -232,7 +238,8 @@ h3 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 7.1rem;
+  flex: 0 0 auto;
+  min-width: 7.8rem;
   border: 1px solid var(--line);
   background: #fff;
   color: var(--red);
@@ -367,8 +374,7 @@ h3 {
 }
 
 .entry-form > *,
-.income-slot > *,
-.header-actions > * {
+.income-slot > * {
   min-width: 0;
 }
 
