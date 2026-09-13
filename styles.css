@@ -290,6 +290,10 @@ h3 {
   background: linear-gradient(135deg, var(--pink), #ff6b6b);
 }
 
+.tab[data-section="apartment"].active {
+  background: linear-gradient(135deg, #0ca678, var(--cyan));
+}
+
 .tab[data-section="savings"].active {
   background: linear-gradient(135deg, var(--violet), var(--blue));
 }
@@ -746,6 +750,10 @@ h3 {
 
 .chart-track .other {
   background: linear-gradient(90deg, var(--pink), #ff6b6b);
+}
+
+.chart-track .apartment {
+  background: linear-gradient(90deg, #0ca678, var(--cyan));
 }
 
 .chart-track .savings {

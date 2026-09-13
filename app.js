@@ -116,6 +116,11 @@ const sections = {
     hint: "Повседневные и нерегулярные расходы: продукты, транспорт, дом, личные покупки.",
     placeholder: "Например: продукты",
   },
+  apartment: {
+    title: "Отложить на квартиру",
+    hint: "Деньги, которые вручную откладываются из основных доходов и лежат отдельно наличкой.",
+    placeholder: "Например: отложили наличкой",
+  },
   savings: {
     title: "Сбережения с прошлых месяцев",
     hint: "Деньги, которые уже были отложены раньше и переходят в текущий месяц.",
@@ -249,7 +254,7 @@ function render() {
     button.addEventListener("click", () => {
       const entry = state.entries.find((item) => item.id === button.dataset.delete);
       if (!entry) return;
-      if (["income", "other"].includes(entry.section) && !confirm(`Удалить запись "${entry.name}"?`)) return;
+      if (["income", "other", "apartment"].includes(entry.section) && !confirm(`Удалить запись "${entry.name}"?`)) return;
       state.entries = state.entries.filter((item) => item.id !== entry.id);
       saveState();
       render();
@@ -381,6 +386,7 @@ function renderSummary() {
     { label: "Обязательные", value: summary.requiredTotal, className: "required" },
     { label: "Долги", value: summary.debtPayments, className: "debt" },
     { label: "Прочие", value: summary.otherTotal, className: "other" },
+    { label: "На квартиру", value: summary.apartmentTotal, className: "apartment" },
     { label: "Сбережения", value: summary.savingsTotal, className: "savings" },
   ];
   const maxValue = Math.max(...bars.map((bar) => bar.value), 1);
@@ -406,6 +412,11 @@ function renderSummary() {
         <p class="summary-label">Остаток долгов</p>
         <strong>${money(summary.debtBalance)}</strong>
         <span>с учетом прошлых месяцев</span>
+      </article>
+      <article class="summary-card">
+        <p class="summary-label">На квартиру</p>
+        <strong>${money(summary.apartmentTotal)}</strong>
+        <span>отложено наличкой</span>
       </article>
     </div>
 
@@ -476,6 +487,7 @@ function currentBudget() {
     if (selectedMonth <= currentMonth && entry.section === "required" && !isPaidForMonth(entry)) return total - amount;
     if (selectedMonth <= currentMonth && entry.section === "debt" && !isPaidForMonth(entry)) return total - amount;
     if (entry.section === "other" && entry.date.startsWith(selectedMonth)) return total - amount;
+    if (entry.section === "apartment" && entry.date.startsWith(selectedMonth)) return total - amount;
     return total;
   }, 0);
 }
@@ -486,6 +498,7 @@ function visibleEntries(section) {
     if (entry.section !== section) return false;
     if (section === "income") return entry.recurring || entry.date.startsWith(selectedMonth);
     if (section === "other") return entry.date.startsWith(selectedMonth);
+    if (section === "apartment") return entry.date.startsWith(selectedMonth);
     return true;
   });
 }
@@ -494,7 +507,7 @@ function sectionTotal(section, entries) {
   if (section === "debt") {
     return entries.reduce((sum, entry) => sum + debtBalanceForMonth(entry), 0);
   }
-  if (section === "income" || section === "savings") {
+  if (section === "income" || section === "savings" || section === "apartment") {
     return entries.reduce((sum, entry) => sum + (entry.recurring ? incomeEntryTotal(entry) : Number(entry.amount || 0)), 0);
   }
   return entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
@@ -794,6 +807,7 @@ function monthSummary() {
     if (entry.section !== "other" || !entry.date.startsWith(selectedMonth)) return false;
     return selectedMonth !== START_MONTH || entry.date >= "2026-09-11";
   });
+  const apartmentEntries = state.entries.filter((entry) => entry.section === "apartment" && entry.date.startsWith(selectedMonth));
   const savingsEntries = state.entries.filter((entry) => entry.section === "savings");
 
   const income = incomeEntries.reduce((sum, entry) => {
@@ -810,6 +824,7 @@ function monthSummary() {
     .reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const debtBalance = debtEntries.reduce((sum, entry) => sum + debtBalanceForMonth(entry), 0);
   const otherTotal = otherEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const apartmentTotal = apartmentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const savingsTotal = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const cash = savingsEntries.find((entry) => entry.name.toLowerCase().includes("налич"))?.amount || 0;
   const savingsAccount = savingsEntries.find((entry) => entry.name.toLowerCase().includes("накоп"))?.amount || 0;
@@ -830,6 +845,7 @@ function monthSummary() {
     debtPayments,
     debtBalance,
     otherTotal,
+    apartmentTotal,
     savingsTotal,
     available: current,
     monthName: displayMonth(selectedMonth),
@@ -1060,6 +1076,10 @@ function sheetTables(savedAt) {
     .filter((entry) => entry.section === "other" && entry.date.startsWith(selectedMonth))
     .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
 
+  const apartmentRows = state.entries
+    .filter((entry) => entry.section === "apartment" && entry.date.startsWith(selectedMonth))
+    .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
+
   const savingsRows = state.entries
     .filter((entry) => entry.section === "savings")
     .map((entry) => [entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
@@ -1072,6 +1092,7 @@ function sheetTables(savedAt) {
     [selectedMonth, "Долги, платежи", summary.debtPayments, savedAt],
     [selectedMonth, "Остаток долгов", summary.debtBalance, savedAt],
     [selectedMonth, "Прочие траты", summary.otherTotal, savedAt],
+    [selectedMonth, "Отложить на квартиру", summary.apartmentTotal, savedAt],
     [selectedMonth, "Сбережения", summary.savingsTotal, savedAt],
     [selectedMonth, "Совет", `${summary.advice.title}. ${summary.advice.text}`, savedAt],
   ];
@@ -1081,6 +1102,7 @@ function sheetTables(savedAt) {
     "Обязательные расходы": [["Месяц", "Название", "Сумма", "Статус", "Дата", "Обновлено"], ...requiredRows],
     "Долги": [["Месяц", "Название", "Число платежа", "Платеж", "Остаток", "Статус", "Обновлено"], ...debtRows],
     "Прочие траты": [["Месяц", "Дата", "Название", "Сумма", "Комментарий", "Обновлено"], ...otherRows],
+    "Отложить на квартиру": [["Месяц", "Дата", "Название", "Сумма", "Комментарий", "Обновлено"], ...apartmentRows],
     "Сбережения": [["Название", "Сумма", "Комментарий", "Обновлено"], ...savingsRows],
     "Сводка": [["Месяц", "Показатель", "Значение", "Обновлено"], ...summaryRows],
   };
