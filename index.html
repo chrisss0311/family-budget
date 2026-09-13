@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Семейный бюджет</title>
     <meta name="description" content="Черновик приложения для семейного бюджета." />
-    <link rel="stylesheet" href="styles.css?v=20260913-3" />
+    <link rel="stylesheet" href="styles.css?v=20260913-4" />
   </head>
   <body>
     <main class="app">
@@ -31,6 +31,7 @@
 
       <nav class="tabs" aria-label="Разделы бюджета">
         <button class="tab active" type="button" data-section="income">Доходы</button>
+        <button class="tab" type="button" data-section="balance">Баланс</button>
         <button class="tab" type="button" data-section="required">Обязательные расходы</button>
         <button class="tab" type="button" data-section="debt">Долги</button>
         <button class="tab" type="button" data-section="other">Прочие траты</button>
@@ -69,6 +70,14 @@
             <span>Сумма</span>
             <input id="entryAmount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" required />
           </label>
+          <label id="entryOwnerField">
+            <span>Кто</span>
+            <select id="entryOwner">
+              <option value="common">Общее</option>
+              <option value="kris">Крис</option>
+              <option value="alina">Алина</option>
+            </select>
+          </label>
           <label class="wide">
             <span>Комментарий</span>
             <input id="entryComment" type="text" placeholder="Необязательно" />
@@ -80,6 +89,6 @@
       </section>
     </main>
 
-    <script src="app.js?v=20260913-3"></script>
+    <script src="app.js?v=20260913-4"></script>
   </body>
 </html>

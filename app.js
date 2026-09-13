@@ -13,14 +13,16 @@ const RUB = new Intl.NumberFormat("ru-RU", {
 const requiredDefaults = [
   { name: "Квартира", amount: 90000, paid: true, order: 1 },
   { name: "Коммуналка", amount: 10000, paid: true, order: 2 },
-  { name: "Карта Тройка", amount: 7000, paid: true, order: 3 },
-  { name: "Оплата моб. связи Крис", amount: 482, dueDay: 5, order: 4 },
-  { name: "Оплата моб. связи Алина", amount: 990, dueDay: 7, order: 5 },
+  { name: "Карта Тройка Крис", amount: 3460, dueDay: 26, owner: "kris", order: 3 },
+  { name: "Карта Тройка Алина", amount: 3460, dueDay: 26, owner: "alina", order: 4 },
+  { name: "Оплата моб. связи Крис", amount: 482, dueDay: 5, owner: "kris", order: 5 },
+  { name: "Оплата моб. связи Алина", amount: 990, dueDay: 7, owner: "alina", order: 6 },
 ];
 
 const incomeDefaults = [
   {
     name: "Крис",
+    owner: "kris",
     order: 1,
     slots: [
       { key: "day14", label: "14 число" },
@@ -29,6 +31,7 @@ const incomeDefaults = [
   },
   {
     name: "Алина СМ",
+    owner: "alina",
     order: 2,
     slots: [
       { key: "day11", label: "11 число" },
@@ -37,6 +40,7 @@ const incomeDefaults = [
   },
   {
     name: "Алина Нейромолодость",
+    owner: "alina",
     order: 3,
     slots: [
       { key: "day5", label: "5 число" },
@@ -54,6 +58,7 @@ const debtDefaults = [
     dueDay: 18,
     balance: 326392.4,
     paid: true,
+    owner: "kris",
     order: 1,
   },
   {
@@ -62,6 +67,7 @@ const debtDefaults = [
     dueDay: 5,
     balance: 318591.76,
     paid: true,
+    owner: "kris",
     order: 2,
   },
   {
@@ -70,6 +76,7 @@ const debtDefaults = [
     dueDay: 19,
     balance: 7618.66,
     paid: false,
+    owner: "alina",
     order: 3,
   },
   {
@@ -78,6 +85,7 @@ const debtDefaults = [
     dueDay: 25,
     balance: 72395.63,
     paid: false,
+    owner: "alina",
     order: 4,
   },
   {
@@ -86,6 +94,7 @@ const debtDefaults = [
     dueDay: 6,
     balance: 20033.29,
     paid: true,
+    owner: "alina",
     order: 5,
   },
 ];
@@ -99,6 +108,11 @@ const sections = {
   summary: {
     title: "Сводка",
     hint: "Красивая картина месяца: деньги, траты, долги, сбережения и подсказка, что делать с остатком.",
+    placeholder: "",
+  },
+  balance: {
+    title: "Баланс",
+    hint: "Баланс Крис и Алины за выбранный месяц: доходы минус личные платежи, долги, прочие траты и отложенные деньги.",
     placeholder: "",
   },
   required: {
@@ -149,6 +163,8 @@ const els = {
   entryName: document.querySelector("#entryName"),
   entryDate: document.querySelector("#entryDate"),
   entryAmount: document.querySelector("#entryAmount"),
+  entryOwnerField: document.querySelector("#entryOwnerField"),
+  entryOwner: document.querySelector("#entryOwner"),
   entryComment: document.querySelector("#entryComment"),
   entryList: document.querySelector("#entryList"),
 };
@@ -199,6 +215,7 @@ function init() {
       name: els.entryName.value.trim(),
       date,
       amount,
+      owner: ownerForNewEntry(),
       comment: els.entryComment.value.trim(),
       paid: false,
     });
@@ -207,6 +224,7 @@ function init() {
     els.entryName.value = "";
     els.entryAmount.value = "";
     els.entryComment.value = "";
+    els.entryOwner.value = defaultOwnerForSection(activeSection);
     render();
     els.entryName.focus();
   });
@@ -225,7 +243,7 @@ function init() {
 function render() {
   const section = sections[activeSection];
   const entries = visibleEntries(activeSection).sort(sortEntries);
-  const total = activeSection === "summary" ? currentBudget() : sectionTotal(activeSection, entries);
+  const total = ["summary", "balance"].includes(activeSection) ? currentBudget() : sectionTotal(activeSection, entries);
 
   els.monthInput.value = selectedMonth;
   els.monthButton.textContent = displayMonth(selectedMonth);
@@ -240,12 +258,16 @@ function render() {
   els.sectionHint.textContent = section.hint;
   els.sectionTotal.textContent = money(total);
   els.entryName.placeholder = section.placeholder;
+  els.entryOwnerField.hidden = !needsOwnerField(activeSection);
+  els.entryOwner.value = defaultOwnerForSection(activeSection);
   els.currentBudget.textContent = money(currentBudget());
-  els.entryForm.hidden = activeSection === "savings" || activeSection === "summary";
+  els.entryForm.hidden = activeSection === "savings" || activeSection === "summary" || activeSection === "balance";
 
   els.entryList.innerHTML =
     activeSection === "summary"
       ? renderSummary()
+      : activeSection === "balance"
+        ? renderBalance()
       : entries.length
         ? entries.map((entry) => renderEntry(entry)).join("")
         : `<div class="empty">Пока здесь нет записей.</div>`;
@@ -310,6 +332,7 @@ function renderEntry(entry) {
           isPaidForMonth(entry) ? "Оплачено" : "Не оплачено"
         }</span>`
       : "";
+  const owner = entry.owner ? `<span class="status owner">${ownerLabel(entry.owner)}</span>` : "";
   const meta =
     entry.section === "debt"
       ? debtMeta(entry)
@@ -325,6 +348,7 @@ function renderEntry(entry) {
         <div class="entry-heading">
           <h3>${escapeHtml(entry.name)}</h3>
           ${status}
+          ${owner}
         </div>
         <p>${meta}</p>
       </div>
@@ -456,6 +480,68 @@ function renderSummary() {
   `;
 }
 
+function renderBalance() {
+  const balance = monthBalance();
+  const maxValue = Math.max(
+    balance.kris.income,
+    balance.kris.deductions,
+    Math.abs(balance.kris.balance),
+    balance.alina.income,
+    balance.alina.deductions,
+    Math.abs(balance.alina.balance),
+    1,
+  );
+
+  return `
+    <div class="balance-grid">
+      ${renderPersonBalance("Крис", balance.kris, maxValue)}
+      ${renderPersonBalance("Алина", balance.alina, maxValue)}
+    </div>
+    <article class="summary-panel">
+      <div>
+        <p class="summary-label">Как считается</p>
+        <h3>Доходы минус личные списания</h3>
+      </div>
+      <p>Общие расходы вроде квартиры и коммуналки пока не вычитаются из личного баланса. Личные платежи, долги, прочие траты и суммы, отложенные на квартиру, вычитаются у выбранного человека.</p>
+    </article>
+  `;
+}
+
+function renderPersonBalance(name, data, maxValue) {
+  const rows = [
+    { label: "Доходы", value: data.income, className: "income" },
+    { label: "Списания", value: data.deductions, className: "other" },
+    { label: "Остаток", value: Math.abs(data.balance), className: data.balance >= 0 ? "savings" : "debt" },
+  ];
+
+  return `
+    <article class="balance-card">
+      <div class="balance-head">
+        <div>
+          <p class="summary-label">Баланс</p>
+          <h3>${name}</h3>
+        </div>
+        <strong class="${data.balance < 0 ? "negative" : ""}">${money(data.balance)}</strong>
+      </div>
+      <div class="chart-bars compact">
+        ${rows
+          .map(
+            (row) => `
+              <div class="chart-row">
+                <span>${row.label}</span>
+                <div class="chart-track">
+                  <i class="${row.className}" style="width: ${Math.max(6, Math.round((row.value / maxValue) * 100))}%"></i>
+                </div>
+                <strong>${money(row.value)}</strong>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </article>
+  `;
+}
+
 function entryActions(entry) {
   if (activeSection === "income" && entry.recurring) {
     return "";
@@ -527,10 +613,14 @@ function loadState() {
 
 function migrateState(saved) {
   const oldIncomeAmounts = collectOldIncomeAmounts(saved.entries);
-  saved.entries = saved.entries.filter((entry) => !isOldIncomeEntry(entry));
+  saved.entries = saved.entries.filter((entry) => !isOldIncomeEntry(entry) && !isOldRequiredEntry(entry));
   incomeDefaults.forEach((item) => {
-    const exists = saved.entries.some((entry) => entry.section === "income" && entry.name === item.name);
-    if (!exists) saved.entries.push(incomeEntry(item));
+    const entry = saved.entries.find((savedEntry) => savedEntry.section === "income" && savedEntry.name === item.name);
+    if (entry) {
+      entry.owner = item.owner;
+    } else {
+      saved.entries.push(incomeEntry(item));
+    }
   });
   requiredDefaults.forEach((item) => {
     const entry = findRequiredEntry(saved.entries, item.name);
@@ -553,6 +643,7 @@ function migrateState(saved) {
       entry.amountsByMonth = entry.amountsByMonth || {};
       entry.slots = incomeDefaults.find((item) => item.name === entry.name)?.slots || entry.slots || [];
       entry.order = incomeDefaults.find((item) => item.name === entry.name)?.order || entry.order || 100;
+      entry.owner = incomeDefaults.find((item) => item.name === entry.name)?.owner || entry.owner || "";
       applyOldIncomeAmounts(entry, oldIncomeAmounts);
     }
     entry.paidMonths = Array.isArray(entry.paidMonths) ? entry.paidMonths : [];
@@ -607,6 +698,7 @@ function incomeEntry(item) {
     comment: "Фактическая сумма по месяцу",
     recurring: true,
     slots: item.slots,
+    owner: item.owner || "",
     order: item.order,
     paidMonths: [],
   };
@@ -625,6 +717,7 @@ function requiredEntry(item) {
     paid: Boolean(item.paid),
     paidMonths: item.paid ? [START_MONTH] : [],
     dueDay: item.dueDay || "",
+    owner: item.owner || "",
     order: item.order || 100,
   };
 }
@@ -642,6 +735,7 @@ function debtEntry(item) {
     paidMonths: item.paid ? [START_MONTH] : [],
     dueDay: item.dueDay,
     balance: item.balance,
+    owner: item.owner || "",
     order: item.order,
   };
 }
@@ -661,6 +755,7 @@ function applyRequiredDefault(entry, item) {
   entry.date =
     item.dueDay === undefined || item.dueDay === "" ? START_DATE : `2026-09-${String(item.dueDay).padStart(2, "0")}`;
   entry.order = item.order || entry.order || 100;
+  entry.owner = item.owner || "";
   entry.comment = entry.comment || "Обязательный расход";
   entry.paidMonths = Array.isArray(entry.paidMonths) ? entry.paidMonths : [];
 
@@ -673,6 +768,7 @@ function applyDebtDefault(entry, item) {
   entry.balance = item.balance;
   entry.date = item.dueDay === "" ? START_DATE : `2026-09-${String(item.dueDay).padStart(2, "0")}`;
   entry.order = item.order || entry.order || 100;
+  entry.owner = item.owner || "";
   entry.comment = entry.comment || "Ежемесячный платеж";
   entry.paidMonths = Array.isArray(entry.paidMonths) ? entry.paidMonths : [];
 
@@ -709,6 +805,57 @@ function incomeEntryTotal(entry) {
   return (entry.slots || []).reduce((total, slot) => total + monthlyAmount(entry, slot.key), 0);
 }
 
+function needsOwnerField(section) {
+  return ["income", "required", "debt", "other", "apartment"].includes(section);
+}
+
+function defaultOwnerForSection(section) {
+  return section === "income" ? "kris" : "common";
+}
+
+function ownerForNewEntry() {
+  return needsOwnerField(activeSection) ? els.entryOwner.value : "";
+}
+
+function ownerLabel(owner) {
+  const labels = { kris: "Крис", alina: "Алина", common: "Общее" };
+  return labels[owner] || "";
+}
+
+function monthBalance() {
+  const result = {
+    kris: { income: 0, deductions: 0, balance: 0 },
+    alina: { income: 0, deductions: 0, balance: 0 },
+  };
+
+  state.entries.forEach((entry) => {
+    const owner = entry.owner;
+    if (!["kris", "alina"].includes(owner)) return;
+
+    if (entry.section === "income") {
+      const value = entry.recurring
+        ? incomeEntryTotal(entry)
+        : entry.date.startsWith(selectedMonth)
+          ? Number(entry.amount || 0)
+          : 0;
+      result[owner].income += value;
+      result[owner].balance += value;
+      return;
+    }
+
+    const shouldDeduct =
+      ((entry.section === "required" || entry.section === "debt") && !isPaidForMonth(entry)) ||
+      ((entry.section === "other" || entry.section === "apartment") && entry.date.startsWith(selectedMonth));
+    if (!shouldDeduct) return;
+
+    const value = Number(entry.amount || 0);
+    result[owner].deductions += value;
+    result[owner].balance -= value;
+  });
+
+  return result;
+}
+
 function sortEntries(a, b) {
   if ((activeSection === "required" || activeSection === "debt") && isPaidForMonth(a) !== isPaidForMonth(b)) {
     return isPaidForMonth(a) ? 1 : -1;
@@ -738,6 +885,10 @@ function isOldIncomeEntry(entry) {
       "Алина Нейромолодость — наличкой",
     ].includes(entry.name)
   );
+}
+
+function isOldRequiredEntry(entry) {
+  return entry.section === "required" && ["Карта Тройка", "Оплата моб. связи Алины"].includes(entry.name);
 }
 
 function collectOldIncomeAmounts(entries) {
@@ -800,6 +951,7 @@ function debtBalanceForMonth(entry) {
 
 function monthSummary() {
   const current = currentBudget();
+  const balance = monthBalance();
   const incomeEntries = state.entries.filter((entry) => entry.section === "income");
   const requiredEntries = state.entries.filter((entry) => entry.section === "required");
   const debtEntries = state.entries.filter((entry) => entry.section === "debt");
@@ -847,6 +999,7 @@ function monthSummary() {
     otherTotal,
     apartmentTotal,
     savingsTotal,
+    balance,
     available: current,
     monthName: displayMonth(selectedMonth),
     advice,
@@ -1039,13 +1192,14 @@ function sheetTables(savedAt) {
           incomeRows.push([
             selectedMonth,
             entry.name,
+            ownerLabel(entry.owner),
             slot.label,
             monthlyAmount(entry, slot.key),
             savedAt,
           ]);
         });
       } else if (entry.date.startsWith(selectedMonth)) {
-        incomeRows.push([selectedMonth, entry.name, formatDate(entry.date), Number(entry.amount || 0), savedAt]);
+        incomeRows.push([selectedMonth, entry.name, ownerLabel(entry.owner), formatDate(entry.date), Number(entry.amount || 0), savedAt]);
       }
     });
 
@@ -1054,6 +1208,7 @@ function sheetTables(savedAt) {
     .map((entry) => [
       selectedMonth,
       entry.name,
+      ownerLabel(entry.owner),
       Number(entry.amount || 0),
       isPaidForMonth(entry) ? "Оплачено" : "Не оплачено",
       formatDate(dueDateString(entry)),
@@ -1065,6 +1220,7 @@ function sheetTables(savedAt) {
     .map((entry) => [
       selectedMonth,
       entry.name,
+      ownerLabel(entry.owner),
       entry.dueDay || "",
       Number(entry.amount || 0),
       debtBalanceForMonth(entry),
@@ -1074,11 +1230,11 @@ function sheetTables(savedAt) {
 
   const otherRows = state.entries
     .filter((entry) => entry.section === "other" && entry.date.startsWith(selectedMonth))
-    .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
+    .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, ownerLabel(entry.owner), Number(entry.amount || 0), entry.comment || "", savedAt]);
 
   const apartmentRows = state.entries
     .filter((entry) => entry.section === "apartment" && entry.date.startsWith(selectedMonth))
-    .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
+    .map((entry) => [selectedMonth, formatDate(entry.date), entry.name, ownerLabel(entry.owner), Number(entry.amount || 0), entry.comment || "", savedAt]);
 
   const savingsRows = state.entries
     .filter((entry) => entry.section === "savings")
@@ -1096,13 +1252,19 @@ function sheetTables(savedAt) {
     [selectedMonth, "Сбережения", summary.savingsTotal, savedAt],
     [selectedMonth, "Совет", `${summary.advice.title}. ${summary.advice.text}`, savedAt],
   ];
+  const balance = monthBalance();
+  const balanceRows = [
+    [selectedMonth, "Крис", balance.kris.income, balance.kris.deductions, balance.kris.balance, savedAt],
+    [selectedMonth, "Алина", balance.alina.income, balance.alina.deductions, balance.alina.balance, savedAt],
+  ];
 
   return {
-    "Доходы": [["Месяц", "Источник", "Дата/часть", "Сумма", "Обновлено"], ...incomeRows],
-    "Обязательные расходы": [["Месяц", "Название", "Сумма", "Статус", "Дата", "Обновлено"], ...requiredRows],
-    "Долги": [["Месяц", "Название", "Число платежа", "Платеж", "Остаток", "Статус", "Обновлено"], ...debtRows],
-    "Прочие траты": [["Месяц", "Дата", "Название", "Сумма", "Комментарий", "Обновлено"], ...otherRows],
-    "Отложить на квартиру": [["Месяц", "Дата", "Название", "Сумма", "Комментарий", "Обновлено"], ...apartmentRows],
+    "Доходы": [["Месяц", "Источник", "Кто", "Дата/часть", "Сумма", "Обновлено"], ...incomeRows],
+    "Обязательные расходы": [["Месяц", "Название", "Кто", "Сумма", "Статус", "Дата", "Обновлено"], ...requiredRows],
+    "Долги": [["Месяц", "Название", "Кто", "Число платежа", "Платеж", "Остаток", "Статус", "Обновлено"], ...debtRows],
+    "Прочие траты": [["Месяц", "Дата", "Название", "Кто", "Сумма", "Комментарий", "Обновлено"], ...otherRows],
+    "Отложить на квартиру": [["Месяц", "Дата", "Название", "Кто", "Сумма", "Комментарий", "Обновлено"], ...apartmentRows],
+    "Баланс": [["Месяц", "Кто", "Доходы", "Списания", "Остаток", "Обновлено"], ...balanceRows],
     "Сбережения": [["Название", "Сумма", "Комментарий", "Обновлено"], ...savingsRows],
     "Сводка": [["Месяц", "Показатель", "Значение", "Обновлено"], ...summaryRows],
   };
