@@ -175,10 +175,18 @@ label {
   color: var(--violet);
 }
 
+.balance-top-button {
+  color: var(--green);
+}
+
 .summary-button.active {
   border-color: transparent;
   background: linear-gradient(135deg, var(--violet), var(--pink));
   color: #fff;
+}
+
+.balance-top-button.active {
+  background: linear-gradient(135deg, #0ca678, var(--blue));
 }
 
 .eyebrow,
@@ -429,11 +437,33 @@ h3 {
   padding: 0.86rem;
 }
 
+.entry.owner-kris {
+  border-left: 5px solid var(--blue);
+  background: linear-gradient(135deg, rgba(36, 87, 255, 0.08), #fff);
+}
+
+.entry.owner-alina {
+  border-left: 5px solid var(--pink);
+  background: linear-gradient(135deg, rgba(214, 51, 132, 0.08), #fff);
+}
+
+.entry.owner-common {
+  border-left: 5px solid var(--line);
+}
+
 .entry.is-paid {
   border-color: rgba(8, 127, 91, 0.24);
   background:
     linear-gradient(135deg, rgba(8, 127, 91, 0.12), rgba(255, 255, 255, 0.8)),
     var(--green-soft);
+}
+
+.entry.owner-kris.is-paid {
+  border-left-color: var(--blue);
+}
+
+.entry.owner-alina.is-paid {
+  border-left-color: var(--pink);
 }
 
 .entry.due-yellow {
@@ -644,6 +674,40 @@ h3 {
   padding: 1rem;
   color: var(--muted);
   text-align: center;
+}
+
+.date-group {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.date-group summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  padding: 0.8rem 0.9rem;
+  font-weight: 850;
+}
+
+.date-group summary::marker {
+  color: var(--blue);
+}
+
+.date-group summary strong {
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+.date-group-list {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid var(--line);
+  background: var(--soft);
+  padding: 0.68rem;
 }
 
 .summary-grid {

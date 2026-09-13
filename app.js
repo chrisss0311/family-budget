@@ -13,8 +13,8 @@ const RUB = new Intl.NumberFormat("ru-RU", {
 const requiredDefaults = [
   { name: "Квартира", amount: 90000, paid: true, order: 1 },
   { name: "Коммуналка", amount: 10000, paid: true, order: 2 },
-  { name: "Карта Тройка Крис", amount: 3460, dueDay: 26, owner: "kris", order: 3 },
-  { name: "Карта Тройка Алина", amount: 3460, dueDay: 26, owner: "alina", order: 4 },
+  { name: "Карта Тройка Крис", amount: 3460, dueDay: 26, owner: "kris", paid: true, order: 3 },
+  { name: "Карта Тройка Алина", amount: 3460, dueDay: 26, owner: "alina", paid: true, order: 4 },
   { name: "Оплата моб. связи Крис", amount: 482, dueDay: 5, owner: "kris", order: 5 },
   { name: "Оплата моб. связи Алина", amount: 990, dueDay: 7, owner: "alina", order: 6 },
 ];
@@ -153,6 +153,7 @@ const els = {
   monthInput: document.querySelector("#monthInput"),
   monthButton: document.querySelector("#monthButton"),
   summaryButton: document.querySelector("#summaryButton"),
+  balanceButton: document.querySelector("#balanceButton"),
   resetButton: document.querySelector("#resetButton"),
   syncStatus: document.querySelector("#syncStatus"),
   currentBudget: document.querySelector("#currentBudget"),
@@ -184,6 +185,10 @@ function init() {
   });
   els.summaryButton.addEventListener("click", () => {
     activeSection = "summary";
+    render();
+  });
+  els.balanceButton.addEventListener("click", () => {
+    activeSection = "balance";
     render();
   });
   els.monthButton.addEventListener("click", () => {
@@ -253,6 +258,7 @@ function render() {
     tab.setAttribute("aria-current", isActive ? "page" : "false");
   });
   els.summaryButton.classList.toggle("active", activeSection === "summary");
+  els.balanceButton.classList.toggle("active", activeSection === "balance");
 
   els.sectionTitle.textContent = section.title;
   els.sectionHint.textContent = section.hint;
@@ -269,7 +275,7 @@ function render() {
       : activeSection === "balance"
         ? renderBalance()
       : entries.length
-        ? entries.map((entry) => renderEntry(entry)).join("")
+        ? renderGroupedEntries(entries)
         : `<div class="empty">Пока здесь нет записей.</div>`;
 
   els.entryList.querySelectorAll("[data-delete]").forEach((button) => {
@@ -343,7 +349,7 @@ function renderEntry(entry) {
   const displayAmount = entry.amount;
 
   return `
-    <article class="entry ${alertClass} ${(activeSection === "required" || activeSection === "debt") && isPaidForMonth(entry) ? "is-paid" : ""}">
+    <article class="entry ${ownerClass(entry.owner)} ${alertClass} ${(activeSection === "required" || activeSection === "debt") && isPaidForMonth(entry) ? "is-paid" : ""}">
       <div>
         <div class="entry-heading">
           <h3>${escapeHtml(entry.name)}</h3>
@@ -358,6 +364,44 @@ function renderEntry(entry) {
       </div>
     </article>
   `;
+}
+
+function renderGroupedEntries(entries) {
+  return entryGroups(entries)
+    .map(
+      (group) => `
+        <details class="date-group" open>
+          <summary>
+            <span>${group.label}</span>
+            <strong>${money(group.total)}</strong>
+          </summary>
+          <div class="date-group-list">
+            ${group.entries.map((entry) => renderEntry(entry)).join("")}
+          </div>
+        </details>
+      `,
+    )
+    .join("");
+}
+
+function entryGroups(entries) {
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const key = groupKey(entry);
+    if (!groups.has(key.id)) groups.set(key.id, { ...key, total: 0, entries: [] });
+    const group = groups.get(key.id);
+    group.entries.push(entry);
+    group.total += entry.recurring ? incomeEntryTotal(entry) : Number(entry.amount || 0);
+  });
+  return [...groups.values()].sort((a, b) => a.sort.localeCompare(b.sort));
+}
+
+function groupKey(entry) {
+  if (entry.section === "income" && entry.recurring) {
+    return { id: "income-main", label: "Основные доходы", sort: "0000-00-00" };
+  }
+  const date = entry.section === "required" || entry.section === "debt" ? dueDateString(entry) : entry.date;
+  return { id: date, label: formatDate(date), sort: date };
 }
 
 function renderIncomeEntry(entry) {
@@ -502,7 +546,7 @@ function renderBalance() {
         <p class="summary-label">Как считается</p>
         <h3>Доходы минус личные списания</h3>
       </div>
-      <p>Общие расходы вроде квартиры и коммуналки пока не вычитаются из личного баланса. Личные платежи, долги, прочие траты и суммы, отложенные на квартиру, вычитаются у выбранного человека.</p>
+      <p>Баланс считается за выбранный месяц: доходы человека минус его личные неоплаченные обязательные платежи и долги, минус прочие траты, минус суммы, отложенные на квартиру. Общие расходы вроде квартиры и коммуналки пока не вычитаются из личного баланса.</p>
     </article>
   `;
 }
@@ -654,6 +698,9 @@ function migrateState(saved) {
       addPaidMonth(entry, START_MONTH);
     }
     if (entry.section === "debt" && itemPaidInStartMonth(entry.name)) {
+      addPaidMonth(entry, START_MONTH);
+    }
+    if (entry.section === "required" && ["Карта Тройка Крис", "Карта Тройка Алина"].includes(entry.name)) {
       addPaidMonth(entry, START_MONTH);
     }
   });
@@ -822,6 +869,13 @@ function ownerLabel(owner) {
   return labels[owner] || "";
 }
 
+function ownerClass(owner) {
+  if (owner === "kris") return "owner-kris";
+  if (owner === "alina") return "owner-alina";
+  if (owner === "common") return "owner-common";
+  return "";
+}
+
 function monthBalance() {
   const result = {
     kris: { income: 0, deductions: 0, balance: 0 },
@@ -888,7 +942,10 @@ function isOldIncomeEntry(entry) {
 }
 
 function isOldRequiredEntry(entry) {
-  return entry.section === "required" && ["Карта Тройка", "Оплата моб. связи Алины"].includes(entry.name);
+  return (
+    entry.section === "required" &&
+    ["Карта Тройка", "Карта тройка", "Оплата моб. связи Алины"].includes(entry.name)
+  );
 }
 
 function collectOldIncomeAmounts(entries) {
@@ -1240,6 +1297,35 @@ function sheetTables(savedAt) {
     .filter((entry) => entry.section === "savings")
     .map((entry) => [entry.name, Number(entry.amount || 0), entry.comment || "", savedAt]);
 
+  const allRows = state.entries.flatMap((entry) => {
+    if (entry.section === "income" && entry.recurring) {
+      return (entry.slots || []).map((slot) => [
+        selectedMonth,
+        "Доходы",
+        slot.label,
+        entry.name,
+        ownerLabel(entry.owner),
+        monthlyAmount(entry, slot.key),
+        "Основной доход",
+        savedAt,
+      ]);
+    }
+
+    const amount = entry.section === "debt" ? debtBalanceForMonth(entry) : Number(entry.amount || 0);
+    const date =
+      entry.section === "required" || entry.section === "debt"
+        ? formatDate(dueDateString(entry))
+        : formatDate(entry.date);
+    const status =
+      entry.section === "required" || entry.section === "debt"
+        ? isPaidForMonth(entry)
+          ? "Оплачено"
+          : "Не оплачено"
+        : entry.comment || "";
+
+    return [[selectedMonth, sections[entry.section]?.title || entry.section, date, entry.name, ownerLabel(entry.owner), amount, status, savedAt]];
+  });
+
   const summaryRows = [
     [selectedMonth, "Месяц", summary.monthName, savedAt],
     [selectedMonth, "Бюджет на данный момент", summary.available, savedAt],
@@ -1266,6 +1352,7 @@ function sheetTables(savedAt) {
     "Отложить на квартиру": [["Месяц", "Дата", "Название", "Кто", "Сумма", "Комментарий", "Обновлено"], ...apartmentRows],
     "Баланс": [["Месяц", "Кто", "Доходы", "Списания", "Остаток", "Обновлено"], ...balanceRows],
     "Сбережения": [["Название", "Сумма", "Комментарий", "Обновлено"], ...savingsRows],
+    "Все операции": [["Месяц", "Раздел", "Дата", "Название", "Кто", "Сумма", "Статус/комментарий", "Обновлено"], ...allRows],
     "Сводка": [["Месяц", "Показатель", "Значение", "Обновлено"], ...summaryRows],
   };
 }
