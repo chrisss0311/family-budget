@@ -436,7 +436,7 @@ function renderSingleGroup(entries) {
 
 function renderSavings(entries) {
   const history = monthlySavingsTransfers();
-  const total = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  const total = savingsBalanceTotal(entries);
   return `
     <div class="quick-actions">
       <button type="button" data-move-savings="cash-to-account">Наличные → счет</button>
@@ -450,11 +450,15 @@ function renderSavings(entries) {
         <strong>${money(total)}</strong>
       </summary>
       <div class="date-group-list">
-        ${entries.length ? entries.map((entry) => renderEntry(entry)).join("") : `<div class="empty">Пока здесь нет записей.</div>`}
+        ${entries.length ? entries.map((entry) => renderSavingsEntry(entry)).join("") : `<div class="empty">Пока здесь нет записей.</div>`}
       </div>
     </details>
     ${renderHistorySection("История операций", history)}
   `;
+}
+
+function renderSavingsEntry(entry) {
+  return renderEntry({ ...entry, amount: savingsEntryDisplayAmount(entry) });
 }
 
 function entryGroups(entries) {
@@ -695,7 +699,7 @@ function currentBudget() {
   const currentMonth = monthKey(new Date());
   return state.entries.reduce((total, entry) => {
     const amount = Number(entry.amount || 0);
-    if (entry.section === "savings") return total + amount;
+    if (entry.section === "savings") return total + savingsEntryDisplayAmount(entry);
     if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) {
       if (entry.movement === "cash-to-card") return total + amount;
       if (entry.movement === "cash-to-account") return total;
@@ -725,6 +729,9 @@ function visibleEntries(section) {
 function sectionTotal(section, entries) {
   if (section === "debt") {
     return entries.reduce((sum, entry) => sum + debtBalanceForMonth(entry), 0);
+  }
+  if (section === "savings") {
+    return savingsBalanceTotal(entries);
   }
   if (section === "income" || section === "savings" || section === "apartment") {
     return entries.reduce((sum, entry) => sum + (entry.recurring ? incomeEntryTotal(entry) : Number(entry.amount || 0)), 0);
@@ -1163,9 +1170,11 @@ function monthSummary() {
   const debtBalance = debtEntries.reduce((sum, entry) => sum + debtBalanceForMonth(entry), 0);
   const otherTotal = otherEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
   const apartmentTotal = apartmentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const savingsTotal = savingsEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
-  const cash = savingsEntries.find((entry) => entry.name.toLowerCase().includes("налич"))?.amount || 0;
-  const savingsAccount = savingsEntries.find((entry) => entry.name.toLowerCase().includes("накоп"))?.amount || 0;
+  const savingsTotal = savingsBalanceTotal(savingsEntries);
+  const cashEntry = savingsEntries.find((entry) => entry.name.toLowerCase().includes("налич"));
+  const savingsAccountEntry = savingsEntries.find((entry) => entry.name.toLowerCase().includes("накоп"));
+  const cash = cashEntry ? savingsEntryDisplayAmount(cashEntry) : 0;
+  const savingsAccount = savingsAccountEntry ? savingsEntryDisplayAmount(savingsAccountEntry) : 0;
   const advice = buildAdvice({
     available: current,
     requiredUnpaid,
@@ -1290,12 +1299,10 @@ function moveCashToSavingsAccount() {
   const value = prompt("Сколько перенести из наличных на накопительный счет?");
   const amount = Number((value || "").replace(",", "."));
   if (!amount) return;
-  if (amount > Number(cash.amount || 0)) {
+  if (amount > savingsEntryDisplayAmount(cash)) {
     alert("В наличных меньше этой суммы.");
     return;
   }
-  cash.amount = Math.max(0, Number(cash.amount || 0) - amount);
-  account.amount = Number(account.amount || 0) + amount;
   state.entries.push({
     id: uid(),
     section: "savingsTransfer",
@@ -1318,14 +1325,13 @@ function moveCashToCard() {
   const value = prompt("Сколько перенести из наличных на карту?");
   const amount = Number((value || "").replace(",", "."));
   if (!amount) return;
-  if (amount > Number(cash.amount || 0)) {
+  if (amount > savingsEntryDisplayAmount(cash)) {
     alert("В наличных меньше этой суммы.");
     return;
   }
   const ownerAnswer = prompt("На чью карту? Напиши: Крис или Алина");
   const owner = normalizeOwner(ownerAnswer);
   if (!owner) return;
-  cash.amount = Math.max(0, Number(cash.amount || 0) - amount);
   state.entries.push({
     id: uid(),
     section: "savingsTransfer",
@@ -1351,7 +1357,6 @@ function moveCardToSavings(targetName) {
   const ownerAnswer = prompt("Кто откладывает? Напиши: Крис или Алина");
   const owner = normalizeOwner(ownerAnswer);
   if (!owner) return;
-  target.amount = Number(target.amount || 0) + amount;
   state.entries.push({
     id: uid(),
     section: "savingsTransfer",
@@ -1411,6 +1416,33 @@ function monthlyTransfers() {
 
 function monthlySavingsTransfers() {
   return state.entries.filter((entry) => entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth));
+}
+
+function savingsBalanceTotal(entries = state.entries.filter((entry) => entry.section === "savings")) {
+  return entries.reduce((sum, entry) => sum + savingsEntryDisplayAmount(entry), 0);
+}
+
+function savingsEntryDisplayAmount(entry) {
+  return Math.max(0, Number(entry.amount || 0) + savingsEntryAdjustment(entry.name));
+}
+
+function savingsEntryAdjustment(name) {
+  return monthlySavingsTransfers().reduce((sum, entry) => {
+    const amount = Number(entry.amount || 0);
+    const movement = entry.movement || "card-to-savings";
+
+    if (name === "Наличкой") {
+      if (movement === "cash-to-card" || movement === "cash-to-account") return sum - amount;
+      if (movement === "card-to-cash") return sum + amount;
+    }
+
+    if (name === "Накопительный счет") {
+      if (movement === "cash-to-account" || movement === "card-to-account") return sum + amount;
+      if (movement === "card-to-savings" && entry.target === "Накопительный счет") return sum + amount;
+    }
+
+    return sum;
+  }, 0);
 }
 
 function operationDate() {
