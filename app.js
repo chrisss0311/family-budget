@@ -699,21 +699,22 @@ function entryActions(entry) {
 
 function currentBudget() {
   const currentMonth = monthKey(new Date());
+  const month = budgetMonth();
   return state.entries.reduce((total, entry) => {
     const amount = Number(entry.amount || 0);
-    if (entry.section === "savings") return total + savingsEntryDisplayAmount(entry);
-    if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) {
+    if (entry.section === "savings") return total + savingsEntryDisplayAmount(entry, month);
+    if (entry.section === "savingsTransfer" && entry.date.startsWith(month)) {
       if (entry.movement === "cash-to-card") return total + amount;
       if (entry.movement === "account-to-card") return total + amount;
       if (entry.movement === "cash-to-account") return total;
       return total - amount;
     }
-    if (entry.section === "income" && entry.recurring) return total + incomeEntryTotal(entry);
-    if (entry.section === "income" && entry.date.startsWith(selectedMonth)) return total + amount;
-    if (selectedMonth <= currentMonth && entry.section === "required" && !isPaidForMonth(entry)) return total - amount;
-    if (selectedMonth <= currentMonth && entry.section === "debt" && !isPaidForMonth(entry)) return total - amount;
-    if (entry.section === "other" && entry.date.startsWith(selectedMonth)) return total - amount;
-    if (entry.section === "apartment" && entry.date.startsWith(selectedMonth)) return total - amount;
+    if (entry.section === "income" && entry.recurring) return total + incomeEntryTotal(entry, month);
+    if (entry.section === "income" && entry.date.startsWith(month)) return total + amount;
+    if (month <= currentMonth && entry.section === "required" && !isPaidForMonth(entry, month)) return total - amount;
+    if (month <= currentMonth && entry.section === "debt" && !isPaidForMonth(entry, month)) return total - amount;
+    if (entry.section === "other" && entry.date.startsWith(month)) return total - amount;
+    if (entry.section === "apartment" && entry.date.startsWith(month)) return total - amount;
     return total;
   }, 0);
 }
@@ -959,14 +960,14 @@ function incomeMeta(entry) {
   return incomeEntryTotal(entry) > 0 ? "сумма внесена" : "сумма пока не внесена";
 }
 
-function monthlyAmount(entry, slot) {
-  const monthly = entry.amountsByMonth?.[selectedMonth];
+function monthlyAmount(entry, slot, month = selectedMonth) {
+  const monthly = entry.amountsByMonth?.[month];
   if (typeof monthly === "number") return Number(monthly || 0);
   return Number(monthly?.[slot] || 0);
 }
 
-function incomeEntryTotal(entry) {
-  return (entry.slots || []).reduce((total, slot) => total + monthlyAmount(entry, slot.key), 0);
+function incomeEntryTotal(entry, month = selectedMonth) {
+  return (entry.slots || []).reduce((total, slot) => total + monthlyAmount(entry, slot.key, month), 0);
 }
 
 function needsOwnerField(section) {
@@ -1123,8 +1124,8 @@ function applyOldIncomeAmounts(entry, oldAmounts) {
   });
 }
 
-function isPaidForMonth(entry) {
-  return Array.isArray(entry.paidMonths) && entry.paidMonths.includes(selectedMonth);
+function isPaidForMonth(entry, month = selectedMonth) {
+  return Array.isArray(entry.paidMonths) && entry.paidMonths.includes(month);
 }
 
 function addPaidMonth(entry, month) {
@@ -1451,16 +1452,16 @@ function monthlySavingsTransfers() {
   return state.entries.filter((entry) => entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth));
 }
 
-function savingsBalanceTotal(entries = state.entries.filter((entry) => entry.section === "savings")) {
-  return entries.reduce((sum, entry) => sum + savingsEntryDisplayAmount(entry), 0);
+function savingsBalanceTotal(entries = state.entries.filter((entry) => entry.section === "savings"), month = selectedMonth) {
+  return entries.reduce((sum, entry) => sum + savingsEntryDisplayAmount(entry, month), 0);
 }
 
-function savingsEntryDisplayAmount(entry) {
-  return Math.max(0, Number(entry.amount || 0) + savingsEntryAdjustment(entry.name));
+function savingsEntryDisplayAmount(entry, month = selectedMonth) {
+  return Math.max(0, Number(entry.amount || 0) + savingsEntryAdjustment(entry.name, month));
 }
 
-function savingsEntryAdjustment(name) {
-  return monthlySavingsTransfers().reduce((sum, entry) => {
+function savingsEntryAdjustment(name, month = selectedMonth) {
+  return savingsTransfersThrough(month).reduce((sum, entry) => {
     const amount = Number(entry.amount || 0);
     const movement = entry.movement || "card-to-savings";
 
@@ -1477,6 +1478,15 @@ function savingsEntryAdjustment(name) {
 
     return sum;
   }, 0);
+}
+
+function savingsTransfersThrough(month) {
+  return state.entries.filter((entry) => entry.section === "savingsTransfer" && monthKeyFromDate(entry.date) <= month);
+}
+
+function budgetMonth() {
+  const currentMonth = monthKey(new Date());
+  return selectedMonth > currentMonth ? currentMonth : selectedMonth;
 }
 
 function operationDate() {
@@ -1714,6 +1724,10 @@ function isoDate(date) {
 
 function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthKeyFromDate(value) {
+  return normalizeDate(value).slice(0, 7);
 }
 
 function normalizeMonth(value) {
