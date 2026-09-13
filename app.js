@@ -140,6 +140,16 @@ const sections = {
     hint: "Деньги, которые уже были отложены раньше и переходят в текущий месяц.",
     placeholder: "Например: остаток с прошлого месяца",
   },
+  transfer: {
+    title: "Переводы",
+    hint: "Внутренние переводы между Крис и Алиной.",
+    placeholder: "",
+  },
+  savingsTransfer: {
+    title: "Перенос в сбережения",
+    hint: "Перенос денег с карты в сбережения.",
+    placeholder: "",
+  },
 };
 
 let activeSection = "income";
@@ -269,14 +279,7 @@ function render() {
   els.currentBudget.textContent = money(currentBudget());
   els.entryForm.hidden = activeSection === "savings" || activeSection === "summary" || activeSection === "balance";
 
-  els.entryList.innerHTML =
-    activeSection === "summary"
-      ? renderSummary()
-      : activeSection === "balance"
-        ? renderBalance()
-      : entries.length
-        ? renderGroupedEntries(entries)
-        : `<div class="empty">Пока здесь нет записей.</div>`;
+  els.entryList.innerHTML = renderActiveContent(entries);
 
   els.entryList.querySelectorAll("[data-delete]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -325,6 +328,28 @@ function render() {
       render();
     });
   });
+  els.entryList.querySelectorAll("[data-move-savings]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.moveSavings;
+      if (kind === "cash-to-account") moveCashToSavingsAccount();
+      if (kind === "card-to-account") moveCardToSavings("Накопительный счет");
+      if (kind === "card-to-cash") moveCardToSavings("Наличкой");
+    });
+  });
+  els.entryList.querySelectorAll("[data-transfer-person]").forEach((button) => {
+    button.addEventListener("click", () => {
+      transferBetweenPeople(button.dataset.transferPerson);
+    });
+  });
+}
+
+function renderActiveContent(entries) {
+  if (activeSection === "summary") return renderSummary();
+  if (activeSection === "balance") return renderBalance();
+  if (activeSection === "savings") return renderSavings(entries);
+  if (!entries.length) return `<div class="empty">Пока здесь нет записей.</div>`;
+  if (["required", "debt"].includes(activeSection)) return renderSingleGroup(entries);
+  return renderGroupedEntries(entries);
 }
 
 function renderEntry(entry) {
@@ -382,6 +407,46 @@ function renderGroupedEntries(entries) {
       `,
     )
     .join("");
+}
+
+function renderSingleGroup(entries) {
+  const label = activeSection === "required" ? "Все обязательные расходы" : "Все долги";
+  const total = entries.reduce((sum, entry) => {
+    if (entry.section === "debt") return sum + debtBalanceForMonth(entry);
+    return sum + Number(entry.amount || 0);
+  }, 0);
+
+  return `
+    <details class="date-group" open>
+      <summary>
+        <span>${label}</span>
+        <strong>${money(total)}</strong>
+      </summary>
+      <div class="date-group-list">
+        ${entries.map((entry) => renderEntry(entry)).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderSavings(entries) {
+  const total = entries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0);
+  return `
+    <div class="quick-actions">
+      <button type="button" data-move-savings="cash-to-account">Наличные → счет</button>
+      <button type="button" data-move-savings="card-to-account">Карта → счет</button>
+      <button type="button" data-move-savings="card-to-cash">Карта → наличные</button>
+    </div>
+    <details class="date-group" open>
+      <summary>
+        <span>Все сбережения</span>
+        <strong>${money(total)}</strong>
+      </summary>
+      <div class="date-group-list">
+        ${entries.length ? entries.map((entry) => renderEntry(entry)).join("") : `<div class="empty">Пока здесь нет записей.</div>`}
+      </div>
+    </details>
+  `;
 }
 
 function entryGroups(entries) {
@@ -537,17 +602,13 @@ function renderBalance() {
   );
 
   return `
+    <div class="quick-actions">
+      <button type="button" data-transfer-person="kris-to-alina">Крис → Алина</button>
+    </div>
     <div class="balance-grid">
       ${renderPersonBalance("Крис", balance.kris, maxValue)}
       ${renderPersonBalance("Алина", balance.alina, maxValue)}
     </div>
-    <article class="summary-panel">
-      <div>
-        <p class="summary-label">Как считается</p>
-        <h3>Доходы минус личные списания</h3>
-      </div>
-      <p>Баланс считается за выбранный месяц: доходы человека минус его личные неоплаченные обязательные платежи и долги, минус прочие траты, минус суммы, отложенные на квартиру. Общие расходы вроде квартиры и коммуналки пока не вычитаются из личного баланса.</p>
-    </article>
   `;
 }
 
@@ -612,6 +673,7 @@ function currentBudget() {
   return state.entries.reduce((total, entry) => {
     const amount = Number(entry.amount || 0);
     if (entry.section === "savings") return total + amount;
+    if (entry.section === "savingsTransfer" && entry.date.startsWith(selectedMonth)) return total - amount;
     if (entry.section === "income" && entry.recurring) return total + incomeEntryTotal(entry);
     if (entry.section === "income" && entry.date.startsWith(selectedMonth)) return total + amount;
     if (selectedMonth <= currentMonth && entry.section === "required" && !isPaidForMonth(entry)) return total - amount;
@@ -897,9 +959,21 @@ function monthBalance() {
       return;
     }
 
+    if (entry.section === "transfer" && entry.date.startsWith(selectedMonth)) {
+      const value = Number(entry.amount || 0);
+      result[owner].deductions += value;
+      result[owner].balance -= value;
+      if (["kris", "alina"].includes(entry.toOwner)) {
+        result[entry.toOwner].income += value;
+        result[entry.toOwner].balance += value;
+      }
+      return;
+    }
+
     const shouldDeduct =
       ((entry.section === "required" || entry.section === "debt") && !isPaidForMonth(entry)) ||
-      ((entry.section === "other" || entry.section === "apartment") && entry.date.startsWith(selectedMonth));
+      ((entry.section === "other" || entry.section === "apartment" || entry.section === "savingsTransfer") &&
+        entry.date.startsWith(selectedMonth));
     if (!shouldDeduct) return;
 
     const value = Number(entry.amount || 0);
@@ -1154,6 +1228,80 @@ function saveStateObject(value) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
 }
 
+function moveCashToSavingsAccount() {
+  const cash = findSavingsEntry("Наличкой");
+  const account = findSavingsEntry("Накопительный счет");
+  if (!cash || !account) return;
+  const value = prompt("Сколько перенести из наличных на накопительный счет?");
+  const amount = Number((value || "").replace(",", "."));
+  if (!amount) return;
+  if (amount > Number(cash.amount || 0)) {
+    alert("В наличных меньше этой суммы.");
+    return;
+  }
+  cash.amount = Math.max(0, Number(cash.amount || 0) - amount);
+  account.amount = Number(account.amount || 0) + amount;
+  saveState();
+  render();
+}
+
+function moveCardToSavings(targetName) {
+  const target = findSavingsEntry(targetName);
+  if (!target) return;
+  const value = prompt(`Сколько перенести с карты в "${targetName}"?`);
+  const amount = Number((value || "").replace(",", "."));
+  if (!amount) return;
+  const ownerAnswer = prompt("Кто откладывает? Напиши: Крис или Алина");
+  const owner = normalizeOwner(ownerAnswer);
+  if (!owner) return;
+  target.amount = Number(target.amount || 0) + amount;
+  state.entries.push({
+    id: uid(),
+    section: "savingsTransfer",
+    name: `Перенос с карты в ${targetName}`,
+    date: `${selectedMonth}-01`,
+    amount,
+    owner,
+    target: targetName,
+    comment: "Быстрый перенос в сбережения",
+    paidMonths: [],
+  });
+  saveState();
+  render();
+}
+
+function transferBetweenPeople(direction) {
+  const value = prompt("Сколько перевести?");
+  const amount = Number((value || "").replace(",", "."));
+  if (!amount) return;
+  if (direction !== "kris-to-alina") return;
+  state.entries.push({
+    id: uid(),
+    section: "transfer",
+    name: "Перевод Крис → Алина",
+    date: `${selectedMonth}-01`,
+    amount,
+    owner: "kris",
+    toOwner: "alina",
+    comment: "Внутренний перевод",
+    paidMonths: [],
+  });
+  saveState();
+  render();
+}
+
+function findSavingsEntry(name) {
+  return state.entries.find((entry) => entry.section === "savings" && entry.name === name);
+}
+
+function normalizeOwner(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text.includes("крис")) return "kris";
+  if (text.includes("алин")) return "alina";
+  alert("Нужно написать: Крис или Алина.");
+  return "";
+}
+
 function setSyncStatus(text, tone = "") {
   if (!els.syncStatus) return;
   els.syncStatus.textContent = text;
@@ -1233,7 +1381,6 @@ function syncPayload() {
     entries: state.entries,
     selectedMonth,
     summary: monthSummary(),
-    tables: sheetTables(savedAt),
     savedAt,
   };
 }
