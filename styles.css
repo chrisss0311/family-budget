@@ -77,8 +77,6 @@ input {
 
 input[type="date"],
 input[type="month"] {
-  appearance: none;
-  -webkit-appearance: none;
   inline-size: 100%;
   min-inline-size: 0;
   max-inline-size: 100%;
@@ -955,8 +953,8 @@ h3 {
 
   input[type="date"],
   input[type="month"] {
-    width: -webkit-fill-available;
-    max-width: -webkit-fill-available;
+    width: 100%;
+    max-width: 100%;
     min-width: 0;
     font-size: 0.95rem;
     line-height: 1.2;

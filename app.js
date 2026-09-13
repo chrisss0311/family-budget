@@ -151,7 +151,7 @@ const els = {
 init();
 
 function init() {
-  els.entryDate.value = displayDate(START_DATE);
+  els.entryDate.value = START_DATE;
   els.monthInput.value = selectedMonth;
   els.monthButton.textContent = displayMonth(selectedMonth);
 
@@ -177,7 +177,7 @@ function init() {
     selectedMonth = normalizeMonth(els.monthInput.value);
     els.monthInput.value = selectedMonth;
     els.monthButton.textContent = displayMonth(selectedMonth);
-    els.entryDate.value = displayDate(`${selectedMonth}-01`);
+    els.entryDate.value = `${selectedMonth}-01`;
     render();
   });
 
@@ -186,7 +186,7 @@ function init() {
     const amount = Number(els.entryAmount.value);
     if (!amount) return;
     const date = normalizeDate(els.entryDate.value, selectedMonth);
-    els.entryDate.value = displayDate(date);
+    els.entryDate.value = date;
 
     state.entries.push({
       id: uid(),
